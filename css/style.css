@@ -1,0 +1,46 @@
+/* Hide scrollbar for a cleaner mobile app look */
+#app-view::-webkit-scrollbar {
+    display: none;
+}
+#app-view {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Skeleton Loader Animation for fast loading feel */
+.skeleton {
+    background: #e2e8f0;
+    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+    border-radius: 0.5rem;
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Page fade-in transition */
+.page-enter {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Active Nav State */
+.nav-item.active {
+    color: #f97316; /* primary */
+}
+.nav-item.active i {
+    transform: translateY(-2px);
+    transition: transform 0.2s ease;
+}
+
+/* Safe area for iPhone bottom notch */
+.pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+}
