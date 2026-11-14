@@ -159,8 +159,13 @@ returns void language sql security definer as $$
 $$;
 
 create or replace function public.is_admin()
-returns boolean language sql stable security definer as $$
-  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
+returns boolean language plpgsql security definer as $$
+begin
+  return exists (
+    select 1 from public.profiles
+    where id = auth.uid() and is_admin = true
+  );
+end;
 $$;
 
 -- =====================================================
