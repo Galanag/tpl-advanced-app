@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { User, Phone, Lock, Ticket, Loader2, Eye, EyeOff } from 'lucide-react';
+
+// Import the logo from the src/assets folder
 import logo from '../assets/logo.png';
-// ... then use it ...
-{/* <img src={logo} alt="HIDASE Logo" className="h-10 w-auto" /> */}
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -21,7 +21,7 @@ const Auth = () => {
     referralCode: urlRefCode || '',
   });
 
-   const { signIn, signUp } = useAuthStore();
+  const { signIn, signUp } = useAuthStore();
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -72,8 +72,8 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
+          {/* Use the imported logo variable here */}
           <img src={logo} alt="HIDASE Logo" className="w-32 mx-auto mb-4" />
-          {/* <img src="/logo.png" alt="HIDASE Logo" className="w-32 mx-auto mb-4" /> */}
           <h1 className="text-2xl font-bold text-white">HIDASE</h1>
           <p className="text-white/50 text-sm mt-1">Investment Group — Watch &amp; Earn</p>
         </div>
@@ -96,88 +96,88 @@ const Auth = () => {
             ))}
           </div>
 
-           <form onSubmit={handleSubmit} className="space-y-4">
-             <div className="relative">
-               <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-               <input
-                 type="tel"
-                 name="phone"
-                 placeholder="Phone Number"
-                 value={form.phone}
-                 onChange={handleChange}
-                 className="glass-input pl-10"
-                 autoComplete="tel"
-               />
-             </div>
- 
-             {tab === 'register' && (
-               <div className="relative">
-                 <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-                 <input
-                   type="text"
-                   name="fullName"
-                   placeholder="Full Name"
-                   value={form.fullName}
-                   onChange={handleChange}
-                   className="glass-input pl-10"
-                   autoComplete="name"
-                 />
-               </div>
-             )}
- 
-             <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-               <input
-                 type={showPassword ? 'text' : 'password'}
-                 name="password"
-                 value={form.password}
-                 onChange={handleChange}
-                 className="glass-input pl-10 pr-10"
-                 autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-               />
-               <button
-                 type="button"
-                 onClick={() => setShowPassword(!showPassword)}
-                 className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
-               >
-                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-               </button>
-             </div>
- 
-             {tab === 'register' && (
-               <div className="relative">
-                 <Ticket size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-                 <input
-                   type="text"
-                   name="referralCode"
-                   placeholder="Referral Code (optional)"
-                   value={form.referralCode}
-                   onChange={handleChange}
-                   className="glass-input pl-10"
-                   autoComplete="off"
-                 />
-               </div>
-             )}
- 
-             {error && (
-               <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
-                 <p className="text-red-400 text-sm">{error}</p>
-               </div>
-             )}
- 
-             <button type="submit" disabled={loading} className="btn-primary flex items-center justify-center gap-2">
-               {loading ? (
-                 <>
-                   <Loader2 size={18} className="animate-spin" />
-                   Please wait…
-                 </>
-               ) : tab === 'login' ? (
-                 'Login'
-               ) : (
-                 'Create Account'
-               )}
-             </button>
-           </form>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="relative">
+              <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+              <input
+                type="tel"
+                name="phone"
+                placeholder="Phone Number"
+                value={form.phone}
+                onChange={handleChange}
+                className="glass-input pl-10"
+                autoComplete="tel"
+              />
+            </div>
+
+            {tab === 'register' && (
+              <div className="relative">
+                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                <input
+                  type="text"
+                  name="fullName"
+                  placeholder="Full Name"
+                  value={form.fullName}
+                  onChange={handleChange}
+                  className="glass-input pl-10"
+                  autoComplete="name"
+                />
+              </div>
+            )}
+
+            <div className="relative">
+              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                className="glass-input pl-10 pr-10"
+                autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+
+            {tab === 'register' && (
+              <div className="relative">
+                <Ticket size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                <input
+                  type="text"
+                  name="referralCode"
+                  placeholder="Referral Code (optional)"
+                  value={form.referralCode}
+                  onChange={handleChange}
+                  className="glass-input pl-10"
+                  autoComplete="off"
+                />
+              </div>
+            )}
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
+                <p className="text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+
+            <button type="submit" disabled={loading} className="btn-primary flex items-center justify-center gap-2">
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Please wait…
+                </>
+              ) : tab === 'login' ? (
+                'Login'
+              ) : (
+                'Create Account'
+              )}
+            </button>
+          </form>
 
           {tab === 'register' && (
             <p className="text-center text-white/40 text-xs mt-4">
