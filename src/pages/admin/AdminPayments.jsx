@@ -129,44 +129,42 @@ const AdminPayments = () => {
         console.log('[AdminPayments] Account status updated to active');
       }
 
-      // 5. Determine new VIP level and daily quota based on total deposited
+      // 5. Determine the new VIP level and daily quota
       const totalDepositedFloat = parseFloat(newTotalDeposited);
-      console.log('[AdminPayments] Total deposited float:', totalDepositedFloat);
       let newVipLevel = 'Basic';
       let newDailyQuota = parseInt(settings.basic_daily_limit || 5);
 
-      // VIP thresholds from settings (we assume they exist)
-      const vip1Threshold = parseFloat(settings.vip1_min_deposit || 500);
-      const vip2Threshold = parseFloat(settings.vip2_min_deposit || 1500);
-      const vip3Threshold = parseFloat(settings.vip3_min_deposit || 5000);
-
-      console.log('[AdminPayments] VIP thresholds:', { vip1Threshold, vip2Threshold, vip3Threshold });
-      console.log('[AdminPayments] VIP limits from settings:', {
-        basic: { limit: settings.basic_daily_limit, reward: settings.basic_reward_amount },
-        vip1: { limit: settings.vip1_daily_limit, reward: settings.vip1_reward_amount },
-        vip2: { limit: settings.vip2_daily_limit, reward: settings.vip2_reward_amount },
-        vip3: { limit: settings.vip3_daily_limit, reward: settings.vip3_reward_amount }
-      });
-
-      if (totalDepositedFloat >= vip3Threshold) {
-        newVipLevel = 'VIP3';
-        newDailyQuota = parseInt(settings.vip3_daily_limit || 20);
-        console.log('[AdminPayments] User qualifies for VIP3');
-      } else if (totalDepositedFloat >= vip2Threshold) {
-        newVipLevel = 'VIP2';
-        newDailyQuota = parseInt(settings.vip2_daily_limit || 15);
-        console.log('[AdminPayments] User qualifies for VIP2');
-      } else if (totalDepositedFloat >= vip1Threshold) {
-        newVipLevel = 'VIP1';
-        newDailyQuota = parseInt(settings.vip1_daily_limit || 10);
-        console.log('[AdminPayments] User qualifies for VIP1');
+      if (deposit.target_vip) {
+        // Explicit VIP upgrade requested by the user — honor the target tier
+        const tier = String(deposit.target_vip).trim().toUpperCase(); // VIP1 / VIP2 / VIP3
+        const tierKey = tier.toLowerCase(); // vip1 / vip2 / vip3
+        newVipLevel = tier;
+        newDailyQuota = parseInt(settings[`${tierKey}_daily_limit`] || 10);
+        console.log('[AdminPayments] Applying requested VIP upgrade to:', tier, 'quota:', newDailyQuota);
       } else {
-        newVipLevel = 'Basic';
-        newDailyQuota = parseInt(settings.basic_daily_limit || 5);
-        console.log('[AdminPayments] User remains Basic');
+        // Fallback: derive tier from cumulative deposits using VIP prices
+        const vip1Threshold = parseFloat(settings.vip1_price || settings.vip1_min_deposit || 500);
+        const vip2Threshold = parseFloat(settings.vip2_price || settings.vip2_min_deposit || 1500);
+        const vip3Threshold = parseFloat(settings.vip3_price || settings.vip3_min_deposit || 5000);
+
+        if (totalDepositedFloat >= vip3Threshold) {
+          newVipLevel = 'VIP3';
+          newDailyQuota = parseInt(settings.vip3_daily_limit || 20);
+        } else if (totalDepositedFloat >= vip2Threshold) {
+          newVipLevel = 'VIP2';
+          newDailyQuota = parseInt(settings.vip2_daily_limit || 15);
+        } else if (totalDepositedFloat >= vip1Threshold) {
+          newVipLevel = 'VIP1';
+          newDailyQuota = parseInt(settings.vip1_daily_limit || 10);
+        } else {
+          newVipLevel = 'Basic';
+          newDailyQuota = parseInt(settings.basic_daily_limit || 5);
+        }
       }
 
-      // 6. Update user's VIP level and daily quota
+      // 6. Persist the new VIP level and daily quota.
+      //    The per-video reward is derived from the VIP tier in admin_settings at claim time,
+      //    so updating vip_level automatically updates the effective reward_amount.
       console.log('[AdminPayments] Updating VIP level to:', newVipLevel, 'and daily quota to:', newDailyQuota);
       const { error: vipLevelError } = await supabase
         .from('profiles')
@@ -282,15 +280,46 @@ const AdminPayments = () => {
                 <p className="text-white/70 text-xs">
                   User: {deposit.profiles?.full_name || 'Unknown'} ({deposit.profiles?.phone || 'N/A'})
                 </p>
+<p className="text-white/70 text-xs mt-1">
+                Amount: {parseFloat(deposit.amount).toFixed(2)} ETB • Method: {deposit.payment_method}
+              </p>
+              {deposit.target_vip && (
+                <p className="text-amber-400 text-xs mt-1">
+                  Target VIP: {deposit.target_vip}
+                  {deposit.payment_reference && (
+                    ` • Paid: ${parseFloat(deposit.amount).toFixed(2)} ETB (upgrade cost)`
+                  )}
+                </p>
+              )}
+              {deposit.payment_name && (
                 <p className="text-white/70 text-xs mt-1">
-                  Amount: {parseFloat(deposit.amount).toFixed(2)} ETB • Method: {deposit.payment_method}
+                  Account: {deposit.payment_name}
                 </p>
-                <p className="text-white/70 text-xs">
-                  Transaction ID: {deposit.transaction_id}
+              )}
+              {deposit.payment_reference && (
+                <p className="text-white/70 text-xs mt-1">
+                  Payment Reference: {deposit.payment_reference}
                 </p>
-                <p className="text-white/70 text-xs">
-                  Submitted: {new Date(deposit.created_at).toLocaleString()}
-                </p>
+              )}
+              <p className="text-white/70 text-xs">
+                Transaction ID: {deposit.transaction_id}
+              </p>
+              {deposit.proof_image_url && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => window.open(deposit.proof_image_url, '_blank')}
+                    className="text-amber-400 text-xs underline cursor-pointer"
+                  >
+                    View Proof
+                  </button>
+                  <p className="text-amber-400 text-xs mt-1">
+                    Proof image: {deposit.proof_image_url?.substring(0, 30)}${deposit.proof_image_url?.length > 30 ? '...' : ''}
+                  </p>
+                </div>
+              )}
+              <p className="text-white/70 text-xs">
+                Submitted: {new Date(deposit.created_at).toLocaleString()}
+              </p>
               </div>
               <div className="flex items-center gap-2">
                 <button

@@ -26,10 +26,13 @@ export const useAdminStore = create((set, get) => ({
       { key: 'basic_reward_amount', value: '10' },
       { key: 'vip1_daily_limit', value: '10' },
       { key: 'vip1_reward_amount', value: '15' },
+      { key: 'vip1_price', value: '500' },
       { key: 'vip2_daily_limit', value: '15' },
       { key: 'vip2_reward_amount', value: '20' },
+      { key: 'vip2_price', value: '1500' },
       { key: 'vip3_daily_limit', value: '20' },
       { key: 'vip3_reward_amount', value: '25' },
+      { key: 'vip3_price', value: '5000' },
       // Withdrawal
       { key: 'withdrawal_minimum', value: '100' },
       { key: 'referrals_required_to_withdraw', value: '5' },

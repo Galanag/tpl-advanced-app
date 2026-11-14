@@ -24,10 +24,7 @@ const ChangePassword = () => {
       setError('New passwords do not match');
       return;
     }
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
+    // No minimum length enforced on frontend; Supabase Auth handles server-side requirements
     setLoading(true);
     try {
       // First, verify the current password by attempting to sign in with it

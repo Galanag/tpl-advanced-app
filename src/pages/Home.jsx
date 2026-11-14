@@ -28,12 +28,12 @@ const Home = () => {
   };
 
   const balance = parseFloat(profile?.balance) || 0;
-  const level = profile?.level || 'Intern';
+  const level = profile?.vip_level || 'Basic';
   const teamSize = profile?.team_size || 0;
 
   const quickActions = [
     { label: 'Withdraw', icon: Wallet, path: '/wallet', color: 'from-amber-500 to-amber-600' },
-    { label: 'Deposit', icon: ArrowDownToLine, path: '/wallet', color: 'from-emerald-500 to-emerald-600' },
+    { label: 'Deposit', icon: ArrowDownToLine, path: '/deposit', color: 'from-emerald-500 to-emerald-600' },
     { label: 'Invite', icon: Users, path: '/team', color: 'from-sky-500 to-sky-600' },
     { label: 'Stats', icon: BarChart3, path: '/profile', color: 'from-purple-500 to-purple-600' },
   ];

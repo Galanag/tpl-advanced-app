@@ -140,6 +140,10 @@ create table if not exists public.deposits (
   amount numeric(12,2) not null,
   payment_method text,
   transaction_id text,
+  target_vip text,
+  payment_reference text,
+  payment_name text,
+  proof_image_url text,
   status text default 'pending' not null,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null,
@@ -147,6 +151,55 @@ create table if not exists public.deposits (
 );
 create index if not exists idx_deposits_user on public.deposits(user_id);
 create index if not exists idx_deposits_status on public.deposits(status);
+create index if not exists idx_deposits_target_vip on public.deposits(target_vip);
+
+-- =====================================================
+-- STORAGE BUCKET for deposit proofs
+-- =====================================================
+-- Create the bucket (idempotent). Public read so stored proof URLs open directly;
+-- uploads still require an authenticated user via the RLS policy below.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('deposit_proofs', 'deposit_proofs', true, 5242880, ARRAY['image/jpeg','image/png','image/webp','image/heic'])
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+-- RLS: authenticated users can upload to the bucket
+drop policy if exists "deposit_proofs_upload" on storage.objects;
+create policy "deposit_proofs_upload" on storage.objects
+for insert to authenticated
+with check (
+  bucket_id = 'deposit_proofs'
+  and auth.role() = 'authenticated'
+);
+
+-- RLS: users can view their own uploads
+drop policy if exists "deposit_proofs_select_own" on storage.objects;
+create policy "deposit_proofs_select_own" on storage.objects
+for select to authenticated
+using (
+  bucket_id = 'deposit_proofs'
+  and auth.uid() = owner
+);
+
+-- RLS: admins can view all uploads
+drop policy if exists "deposit_proofs_select_admin" on storage.objects;
+create policy "deposit_proofs_select_admin" on storage.objects
+for select to authenticated
+using (
+  bucket_id = 'deposit_proofs'
+  and is_admin()
+);
+
+-- RLS: admins can delete (optional)
+drop policy if exists "deposit_proofs_delete_admin" on storage.objects;
+create policy "deposit_proofs_delete_admin" on storage.objects
+for delete to authenticated
+using (
+  bucket_id = 'deposit_proofs'
+  and is_admin()
+);
 
 -- =====================================================
 -- 7. HELPER FUNCTIONS

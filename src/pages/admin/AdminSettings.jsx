@@ -23,10 +23,13 @@ const AdminSettings = () => {
     { key: 'basic_reward_amount', label: 'Basic VIP Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
     { key: 'vip1_daily_limit', label: 'VIP1 Daily Limit (videos)', type: 'number', min: 0, step: 1 },
     { key: 'vip1_reward_amount', label: 'VIP1 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
+    { key: 'vip1_price', label: 'VIP1 Upgrade Price (ETB)', type: 'number', min: 0, step: 1 },
     { key: 'vip2_daily_limit', label: 'VIP2 Daily Limit (videos)', type: 'number', min: 0, step: 1 },
     { key: 'vip2_reward_amount', label: 'VIP2 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
+    { key: 'vip2_price', label: 'VIP2 Upgrade Price (ETB)', type: 'number', min: 0, step: 1 },
     { key: 'vip3_daily_limit', label: 'VIP3 Daily Limit (videos)', type: 'number', min: 0, step: 1 },
     { key: 'vip3_reward_amount', label: 'VIP3 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
+    { key: 'vip3_price', label: 'VIP3 Upgrade Price (ETB)', type: 'number', min: 0, step: 1 },
     { key: 'withdrawal_minimum', label: 'Minimum Withdrawal Amount (ETB)', type: 'number', min: 0, step: 0.01 },
     { key: 'referrals_required_to_withdraw', label: 'Referrals Required to Withdraw', type: 'number', min: 0, step: 1 },
   ];
