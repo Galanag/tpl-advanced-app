@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Search, Users, UserCheck, UserX, CheckCircle2, Clock, Loader2, Banknote, X } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, Users, UserCheck, UserX, CheckCircle2, Loader2, Banknote, X } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
-import { useAuthStore } from '../../store/authStore';
 import { supabase } from '../../lib/supabase';
 import GlassCard from '../../components/GlassCard';
 import SkeletonLoader from '../../components/SkeletonLoader';
@@ -13,57 +12,49 @@ const STATUS_COLORS = {
 };
 
 const AdminUsers = () => {
-  const { users, loading, fetchUsers, activateUser, suspendUser } = useAdminStore();
-  const { refreshProfile } = useAuthStore();
+  // Stable selectors — subscribe only to needed state, actions are stable references
+  const users = useAdminStore((s) => s.users);
+  const loading = useAdminStore((s) => s.loading);
+  const fetchUsers = useAdminStore((s) => s.fetchUsers);
+  const activateUser = useAdminStore((s) => s.activateUser);
+  const suspendUser = useAdminStore((s) => s.suspendUser);
+
   const [search, setSearch] = useState('');
   const [activating, setActivating] = useState(null);
-  const [financialData, setFinancialData] = useState({}); // user_id => { deposits, withdrawn, commissions }
-  const [viewDetailsUser, setViewDetailsUser] = useState(null); // for modal
+  const [financialData, setFinancialData] = useState({});
+  const [viewDetailsUser, setViewDetailsUser] = useState(null);
   const [loadingFinancial, setLoadingFinancial] = useState(false);
 
-  // Memoize fetchFinancialData to prevent infinite re-renders
+  // Mount guard for async operations
+  const isMountedRef = useRef(true);
+
+  // Memoized financial data fetcher — no external dependencies (supabase is stable module import)
   const fetchFinancialData = useCallback(async () => {
     setLoadingFinancial(true);
     try {
-      // Fetch total approved deposits per user
-      const { data: depositsData, error: depositsError } = await supabase
-        .from('deposits')
-        .select('user_id, sum(amount) as total')
-        .eq('status', 'approved')
-        .group('user_id');
+      const [
+        { data: depositsData, error: depositsError },
+        { data: withdrawnData, error: withdrawnError },
+        { data: commissionsData, error: commissionsError },
+      ] = await Promise.all([
+        supabase.from('deposits').select('user_id, sum(amount) as total').eq('status', 'approved').group('user_id'),
+        supabase.from('withdrawals').select('user_id, sum(amount) as total').in('status', ['approved', 'completed']).group('user_id'),
+        supabase.from('commissions').select('user_id, sum(amount) as total').group('user_id'),
+      ]);
 
       if (depositsError) throw depositsError;
-      const depositsMap = {};
-      (depositsData || []).forEach((row) => {
-        depositsMap[row.user_id] = parseFloat(row.total) || 0;
-      });
-
-      // Fetch total withdrawn (approved or completed) per user
-      const { data: withdrawnData, error: withdrawnError } = await supabase
-        .from('withdrawals')
-        .select('user_id, sum(amount) as total')
-        .in('status', ['approved', 'completed'])
-        .group('user_id');
-
       if (withdrawnError) throw withdrawnError;
-      const withdrawnMap = {};
-      (withdrawnData || []).forEach((row) => {
-        withdrawnMap[row.user_id] = parseFloat(row.total) || 0;
-      });
-
-      // Fetch total commissions per user
-      const { data: commissionsData, error: commissionsError } = await supabase
-        .from('commissions')
-        .select('user_id, sum(amount) as total')
-        .group('user_id');
-
       if (commissionsError) throw commissionsError;
-      const commissionsMap = {};
-      (commissionsData || []).forEach((row) => {
-        commissionsMap[row.user_id] = parseFloat(row.total) || 0;
-      });
 
-      // Combine the data
+      const depositsMap = {};
+      (depositsData || []).forEach((row) => { depositsMap[row.user_id] = parseFloat(row.total) || 0; });
+
+      const withdrawnMap = {};
+      (withdrawnData || []).forEach((row) => { withdrawnMap[row.user_id] = parseFloat(row.total) || 0; });
+
+      const commissionsMap = {};
+      (commissionsData || []).forEach((row) => { commissionsMap[row.user_id] = parseFloat(row.total) || 0; });
+
       const combined = {};
       const allUserIds = new Set([
         ...Object.keys(depositsMap),
@@ -78,22 +69,28 @@ const AdminUsers = () => {
         };
       });
 
-      setFinancialData(combined);
+      if (isMountedRef.current) setFinancialData(combined);
     } catch (err) {
       console.error('Error fetching financial data:', err);
     } finally {
-      setLoadingFinancial(false);
+      if (isMountedRef.current) setLoadingFinancial(false);
     }
   }, []);
 
-  // Load data on mount and when search changes
+  // Effect 1: Financial data — fetch once on mount only (no search dependency)
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetchFinancialData();
+    return () => { isMountedRef.current = false; };
+  }, [fetchFinancialData]);
+
+  // Effect 2: Users — fetch when search changes (debounced)
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchUsers(search);
-      fetchFinancialData();
+      if (isMountedRef.current) fetchUsers(search);
     }, 300);
     return () => clearTimeout(timer);
-  }, [search, fetchFinancialData]);
+  }, [search, fetchUsers]);
 
   const handleActivate = async (userId) => {
     setActivating(userId);
@@ -103,11 +100,8 @@ const AdminUsers = () => {
   const pendingCount = users.filter((u) => u.account_status === 'pending').length;
   const activeCount = users.filter((u) => u.account_status === 'active').length;
 
-  // Modal for viewing user details
   const handleCloseDetails = () => setViewDetailsUser(null);
-  const handleOpenDetails = (user) => {
-    setViewDetailsUser(user);
-  };
+  const handleOpenDetails = (user) => setViewDetailsUser(user);
 
   return (
     <div className="space-y-4">
@@ -188,7 +182,6 @@ const AdminUsers = () => {
                       Reactivate
                     </button>
                   )}
-                  {/* View Details button */}
                   <button
                     onClick={() => handleOpenDetails(user)}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white/60 text-xs font-medium hover:bg-white/20 transition-all active:scale-95"

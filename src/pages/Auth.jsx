@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { User, Phone, Lock, Ticket, Loader2, Eye, EyeOff } from 'lucide-react';
+import logo from '../assets/logo.png';
+// ... then use it ...
+{/* <img src={logo} alt="HIDASE Logo" className="h-10 w-auto" /> */}
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -69,7 +72,8 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="HIDASE Logo" className="w-32 mx-auto mb-4" />
+          <img src={logo} alt="HIDASE Logo" className="w-32 mx-auto mb-4" />
+          {/* <img src="/logo.png" alt="HIDASE Logo" className="w-32 mx-auto mb-4" /> */}
           <h1 className="text-2xl font-bold text-white">HIDASE</h1>
           <p className="text-white/50 text-sm mt-1">Investment Group — Watch &amp; Earn</p>
         </div>
