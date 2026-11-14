@@ -33,6 +33,32 @@ const Wallet = () => {
   
   const balance = parseFloat(profile?.balance) || 0;
   const successfulReferrals = parseInt(profile?.successful_referrals || 0);
+  const [freshProfile, setFreshProfile] = useState(profile);
+
+  // Fetch fresh profile data on mount and when profile changes
+  useEffect(() => {
+    if (!user?.id) return;
+    const fetchFreshProfile = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('successful_referrals, balance, payment_account_number, vip_level, account_status')
+          .eq('id', user.id)
+          .single();
+        if (data && !error) {
+          setFreshProfile(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch fresh profile:', err);
+      }
+    };
+    fetchFreshProfile();
+  }, [user?.id]);
+
+  // Use freshProfile for withdrawal checks to avoid stale state
+  const freshSuccessfulReferrals = parseInt(freshProfile?.successful_referrals || 0);
+  const freshBalance = parseFloat(freshProfile?.balance) || 0;
+  const freshPaymentMethod = freshProfile?.payment_account_number || profile?.payment_account_number;
   
   // Fetch financial metrics and transaction history
   useEffect(() => {
@@ -237,18 +263,18 @@ const Wallet = () => {
         }`}>{message.text}</div>
       )}
       
-      {showWithdraw && (
-          <WithdrawModal
-            balance={availableBalance}
-            user={user}
-            profile={profile}
-            refreshProfile={refreshProfile}
-            withdrawalMinimum={withdrawalMinimum}
-            referralsRequired={referralsRequired}
-            successfulReferrals={successfulReferrals}
-            onClose={() => setShowWithdraw(false)}
-            onSuccess={(text) => { setMessage({ type: 'success', text }); setShowWithdraw(false); fetchFinancialMetrics(); fetchTransactions(); }}
-          />
+{showWithdraw && (
+        <WithdrawModal
+          balance={freshBalance}
+          user={user}
+          profile={freshProfile}
+          refreshProfile={refreshProfile}
+          withdrawalMinimum={withdrawalMinimum}
+          referralsRequired={referralsRequired}
+          successfulReferrals={freshSuccessfulReferrals}
+          onClose={() => setShowWithdraw(false)}
+          onSuccess={(text) => { setMessage({ type: 'success', text }); setShowWithdraw(false); fetchFinancialMetrics(); fetchTransactions(); }}
+        />
       )}
       
       {/* Transaction History */}
