@@ -17,13 +17,13 @@ export const useAdminStore = create((set, get) => ({
 
   initializeSettings: async () => {
     const defaults = [
-      { key: 'registration_fee', value: '500' },
+      { key: 'registration_fee', value: '1000' },
       { key: 'daily_video_limit', value: '10' },
       { key: 'video_reward_amount', value: '10' },
       { key: 'referral_bonus_percentage', value: '10' },
       // VIP Tiers
       { key: 'basic_daily_limit', value: '5' },
-      { key: 'basic_reward_amount', value: '10' },
+      { key: 'basic_reward_amount', value: '600' },
       { key: 'vip1_daily_limit', value: '10' },
       { key: 'vip1_reward_amount', value: '15' },
       { key: 'vip1_price', value: '500' },
@@ -34,8 +34,11 @@ export const useAdminStore = create((set, get) => ({
       { key: 'vip3_reward_amount', value: '25' },
       { key: 'vip3_price', value: '5000' },
       // Withdrawal
-      { key: 'withdrawal_minimum', value: '100' },
+      { key: 'withdrawal_minimum', value: '3000' },
       { key: 'referrals_required_to_withdraw', value: '5' },
+      // Telebirr (new payment method for registration)
+      { key: 'telebirr_name', value: '' },
+      { key: 'telebirr_number', value: '' },
     ];
     for (const setting of defaults) {
       // Check if setting exists, if not, insert it

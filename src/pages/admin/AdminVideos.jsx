@@ -4,7 +4,7 @@ import { useAdminStore } from '../../store/adminStore';
 import GlassCard from '../../components/GlassCard';
 import SkeletonLoader from '../../components/SkeletonLoader';
 
-const EMPTY_FORM = { title: '', video_url: '', thumbnail_url: '', duration_seconds: 30, reward_amount: 10 };
+const EMPTY_FORM = { title: '', youtube_url: '', thumbnail_url: '', duration_seconds: 30, reward_amount: 10 };
 
 const AdminVideos = () => {
   const { videos, loading, addVideo, updateVideo, deleteVideo } = useAdminStore();
@@ -25,7 +25,7 @@ const AdminVideos = () => {
     setEditing(video);
     setForm({
       title: video.title,
-      video_url: video.video_url || '',
+      youtube_url: video.youtube_url || video.video_url || '',
       thumbnail_url: video.thumbnail_url || '',
       duration_seconds: video.duration_seconds,
       reward_amount: video.reward_amount
@@ -50,7 +50,7 @@ const AdminVideos = () => {
     try {
       const payload = {
         title: form.title.trim(),
-        video_url: form.video_url,
+        video_url: form.youtube_url,
         thumbnail_url: form.thumbnail_url,
         duration_seconds: parseInt(form.duration_seconds) || 30,
         reward_amount: parseFloat(form.reward_amount) || 0
@@ -91,7 +91,7 @@ const AdminVideos = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-white/50 text-sm block mb-1.5">YouTube URL</label>
-                <input type="url" value={form.video_url} onChange={(e) => setForm({ ...form, video_url: e.target.value })} className="glass-input" placeholder="https://youtube.com/watch?v=..." />
+                <input type="url" value={form.youtube_url} onChange={(e) => setForm({ ...form, youtube_url: e.target.value })} className="glass-input" placeholder="https://youtube.com/watch?v=..." />
               </div>
               <div>
                 <label className="text-white/50 text-sm block mb-1.5">Thumbnail URL</label>

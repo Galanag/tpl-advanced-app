@@ -32,6 +32,9 @@ const AdminSettings = () => {
     { key: 'vip3_price', label: 'VIP3 Upgrade Price (ETB)', type: 'number', min: 0, step: 1 },
     { key: 'withdrawal_minimum', label: 'Minimum Withdrawal Amount (ETB)', type: 'number', min: 0, step: 0.01 },
     { key: 'referrals_required_to_withdraw', label: 'Referrals Required to Withdraw', type: 'number', min: 0, step: 1 },
+    // Telebirr (new payment method for registration)
+    { key: 'telebirr_name', label: 'Telebirr Account Name', type: 'text', min: 0, step: 1 },
+    { key: 'telebirr_number', label: 'Telebirr Phone Number', type: 'tel', min: 0, step: 1 },
   ];
 
   useEffect(() => {

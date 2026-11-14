@@ -1,22 +1,35 @@
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X, AlertTriangle, Copy, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import GlassCard from './GlassCard';
 
-const WithdrawModal = ({ balance, onClose, onSuccess, user, refreshProfile, withdrawalMinimum }) => {
+const WithdrawModal = ({ balance, user, refreshProfile, withdrawalMinimum, referralsRequired, successfulReferrals, onClose, onSuccess }) => {
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [showReferralGate, setShowReferralGate] = useState(false);
+
   const minWithdrawal = withdrawalMinimum || 100;
+  const referralLink = `https://hidase.app/ref/${user?.referral_code || ''}`;
+  const [copied, setCopied] = useState(false);
 
   const handleWithdraw = async (e) => {
     e.preventDefault();
     setError('');
+
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return setError('Enter a valid amount');
     if (amt < minWithdrawal + 1) return setError(`Minimum withdrawal is ${minWithdrawal} ETB. You need to withdraw more than ${minWithdrawal} ETB.`);
     if (amt > balance) return setError('Insufficient balance');
-    if (!phone.trim()) return setError('Enter the receiving phone number');
+
+    // --- Referral gate check (moved here from the Wallet page) ---
+    if (successfulReferrals < referralsRequired) {
+      setShowReferralGate(true);
+      return;
+    }
+    // --- End referral gate check ---
+
     setProcessing(true);
     try {
       await supabase.from('withdrawals').insert({ user_id: user.id, amount: amt, status: 'pending' });
@@ -27,6 +40,16 @@ const WithdrawModal = ({ balance, onClose, onSuccess, user, refreshProfile, with
       setError(err.message || 'Withdrawal failed. Please try again.');
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const copyReferral = async () => {
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* noop */
     }
   };
 
@@ -66,6 +89,27 @@ const WithdrawModal = ({ balance, onClose, onSuccess, user, refreshProfile, with
           </div>
         </form>
       </div>
+
+      {/* Referral Gate Modal */}
+      {showReferralGate && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80">
+          <GlassCard className="w-full max-w-sm p-6 text-center fade-in-up">
+            <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-500/20 flex items-center justify-center">
+              <AlertTriangle size={28} className="text-amber-400" />
+            </div>
+            <h4 className="text-white font-bold text-lg mb-2">Withdrawal Locked</h4>
+            <p className="text-white/60 text-sm mb-5">
+              To withdraw your {minWithdrawal} ETB, you must invite {referralsRequired} friends who have paid the registration fee. You currently have {successfulReferrals} active referral{successfulReferrals !== 1 ? 's' : ''}.
+            </p>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setShowReferralGate(false)} className="btn-secondary flex-1">Close</button>
+              <button type="button" onClick={copyReferral} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                {copied ? <><CheckCircle2 size={16} /> Copied</> : <><Copy size={16} /> Copy Referral Link</>}
+              </button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 };

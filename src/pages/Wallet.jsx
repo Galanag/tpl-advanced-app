@@ -24,10 +24,9 @@ const Wallet = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showWithdraw, setShowWithdraw] = useState(false);
-    const [showReferralGate, setShowReferralGate] = useState(false);
   const [message, setMessage] = useState(null);
   
-  // Withdrawal limits
+  // Withdrawal limits (will be passed to WithdrawModal)
   const [withdrawalMinimum, setWithdrawalMinimum] = useState(100); // default
   const [referralsRequired, setReferralsRequired] = useState(5); // default
   const [settingsLoading, setSettingsLoading] = useState(true);
@@ -135,7 +134,8 @@ const Wallet = () => {
     ? <TrendingUp size={16} className="text-emerald-400" />
     : <ArrowUpRight size={16} className="text-amber-400" />;
   
-  const canWithdraw = successfulReferrals >= referralsRequired && availableBalance >= withdrawalMinimum && profile?.payment_account_number;
+  // Simple check: balance and payment method only (referral check moved to modal)
+  const canOpenWithdraw = availableBalance >= withdrawalMinimum && profile?.payment_account_number;
   
   return (
     <div className="fade-in-up space-y-6">
@@ -197,7 +197,6 @@ const Wallet = () => {
               {availableBalance.toFixed(2)} <span className="text-lg text-amber-400">ETB</span>
             </h3>
             <p className="text-white/40 text-xs mt-2">Minimum withdrawal: {withdrawalMinimum} ETB</p>
-            <p className="text-white/40 text-xs mt-1">Referrals required: {referralsRequired} (You have {successfulReferrals})</p>
             {!profile?.payment_account_number && (
               <p className="text-white/40 text-xs mt-1 text-red-400">Please add payment method in Profile</p>
             )}
@@ -215,16 +214,14 @@ const Wallet = () => {
               onClick={() => {
                 if (!profile?.payment_account_number) {
                   setMessage({ type: 'error', text: 'Please add your payment method in your Profile before withdrawing.' });
-                } else if (successfulReferrals < referralsRequired) {
-                  setShowReferralGate(true);
                 } else if (availableBalance < withdrawalMinimum) {
                   setMessage({ type: 'error', text: `Your available balance is below the minimum withdrawal of ${withdrawalMinimum} ETB.` });
                 } else {
                   setShowWithdraw(true);
                 }
               }}
-              disabled={!canWithdraw}
-              className={`btn-primary flex-1 flex items-center justify-center gap-2 ${!canWithdraw ? 'opacity-50' : ''}`}
+              disabled={!canOpenWithdraw}
+              className={`btn-primary flex-1 flex items-center justify-center gap-2 ${!canOpenWithdraw ? 'opacity-50' : ''}`}
             >
               <ArrowUpRight size={18} /> Withdraw
             </button>
@@ -240,36 +237,14 @@ const Wallet = () => {
         }`}>{message.text}</div>
       )}
       
-          {showReferralGate && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80">
-          <GlassCard className="w-full max-w-sm p-6 text-center fade-in-up">
-            <AlertTriangle size={48} className="text-amber-400 mx-auto mb-3" />
-            <h4 className="text-white font-bold text-lg mb-2">Insufficient Referrals</h4>
-            <p className="text-white/50 text-sm mb-5">
-              You need {referralsRequired} successful referrals to withdraw. You currently have {successfulReferrals}.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowReferralGate(false)} className="btn-secondary flex-1">
-                OK
-              </button>
-            </div>
-          </GlassCard>
-        </div>
-      )}
-
-      {/* Referral Withdrawal Warning */}
-      {successfulReferrals < referralsRequired && (
-        <div className="rounded-xl px-4 py-3 border bg-amber-500/10 border-amber-500/30 text-amber-400 text-sm">
-          You need {Math.max(referralsRequired - successfulReferrals, 0)} more active referral{Math.max(referralsRequired - successfulReferrals, 0) === 1 ? '' : 's'} to withdraw.
-        </div>
-      )}
-      
       {showWithdraw && (
         <WithdrawModal
           balance={availableBalance}
           user={user}
           refreshProfile={refreshProfile}
           withdrawalMinimum={withdrawalMinimum}
+          referralsRequired={referralsRequired}
+          successfulReferrals={successfulReferrals}
           onClose={() => setShowWithdraw(false)}
           onSuccess={(text) => { setMessage({ type: 'success', text }); setShowWithdraw(false); fetchFinancialMetrics(); fetchTransactions(); }}
         />

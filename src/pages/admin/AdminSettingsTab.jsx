@@ -15,6 +15,7 @@ const AdminSettingsTab = () => {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => { setForm({ ...settings }); }, [settings]);
 
@@ -29,6 +30,9 @@ const AdminSettingsTab = () => {
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err.message || 'Failed to update settings');
+      setTimeout(() => setError(''), 4000);
     } finally { setSaving(false); }
   };
 
@@ -52,6 +56,7 @@ const AdminSettingsTab = () => {
               />
             </div>
           ))}
+          {error && <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-1 text-red-400 text-sm mb-2">{error}</div>}
           <button type="submit" disabled={saving} className="btn-primary flex items-center justify-center gap-2">
             {saving ? (<><Loader2 size={16} className="animate-spin" />Saving…</>) : saved ? (<><Save size={16} /> Saved!</>) : (<><Save size={16} /> Save Settings</>)}
           </button>

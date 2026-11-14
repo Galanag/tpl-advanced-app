@@ -136,8 +136,9 @@ const AdminPayments = () => {
 
       if (deposit.target_vip) {
         // Explicit VIP upgrade requested by the user — honor the target tier
-        const tier = String(deposit.target_vip).trim().toUpperCase(); // VIP1 / VIP2 / VIP3
-        const tierKey = tier.toLowerCase(); // vip1 / vip2 / vip3
+        const tierRaw = String(deposit.target_vip).trim();
+        const tierKey = tierRaw.toLowerCase();
+        const tier = tierKey === 'basic' ? 'Basic' : tierRaw.toUpperCase(); // VIP1 / VIP2 / VIP3
         newVipLevel = tier;
         newDailyQuota = parseInt(settings[`${tierKey}_daily_limit`] || 10);
         console.log('[AdminPayments] Applying requested VIP upgrade to:', tier, 'quota:', newDailyQuota);
@@ -177,47 +178,51 @@ const AdminPayments = () => {
       }
       console.log('[AdminPayments] VIP level and quota updated');
 
-      // 7. If the user was referred, update the referral and referrer's successful_referrals
+      // 7. If the user was referred, activate the referral and credit the referrer
+      //    only once (when transitioning from 'pending_payment' to 'active'), so that
+      //    repeated deposit approvals don't inflate successful_referrals.
       if (profile.referred_by) {
         console.log('[AdminPayments] User was referred by:', profile.referred_by);
-        // Update referral status to active
-        const { error: referralStatusError } = await supabase
+
+        const { data: referralRow, error: referralFetchError } = await supabase
           .from('referrals')
-          .update({ status: 'active' })
-          .eq('referred_id', profile.id);
+          .select('id, status')
+          .eq('referred_id', profile.id)
+          .maybeSingle();
 
-        if (referralStatusError) {
-          console.error('[AdminPayments] Error updating referral status:', referralStatusError);
-          throw referralStatusError;
-        }
-        console.log('[AdminPayments] Referral status updated to active');
-
-        // Fetch the referrer's current successful_referrals and increment it
-        const { data: referrerProfile, error: referrerFetchError } = await supabase
-          .from('profiles')
-          .select('successful_referrals')
-          .eq('id', profile.referred_by)
-          .single();
-
-        if (referrerFetchError) {
-          console.error('[AdminPayments] Error fetching referrer profile:', referrerFetchError);
-          throw referrerFetchError;
+        if (referralFetchError) {
+          console.error('[AdminPayments] Error fetching referral:', referralFetchError);
+          throw referralFetchError;
         }
 
-        const currentReferrals = parseInt(referrerProfile?.successful_referrals || 0);
-        const { error: referrerError } = await supabase
-          .from('profiles')
-          .update({ successful_referrals: currentReferrals + 1 })
-          .eq('id', profile.referred_by);
+        if (!referralRow) {
+          // No referral record exists despite referred_by being set on the profile.
+          // Do not credit the referrer for a referral that cannot be resolved.
+          console.warn('[AdminPayments] No referral record found for referred user; skipping referral credit.');
+        } else if (referralRow.status !== 'active') {
+          // Update referral status to active
+          const { error: referralStatusError } = await supabase
+            .from('referrals')
+            .update({ status: 'active' })
+            .eq('id', referralRow.id);
 
-        if (referrerError) {
-          console.error('[AdminPayments] Error updating referrer successful_referrals:', referrerError);
-          throw referrerError;
+          if (referralStatusError) {
+            console.error('[AdminPayments] Error updating referral status:', referralStatusError);
+            throw referralStatusError;
+          }
+          console.log('[AdminPayments] Referral status updated to active');
+
+          // Atomically increment the referrer's successful_referrals via RPC
+          const { error: referrerError } = await supabase.rpc('increment_successful_referrals', { uid: profile.referred_by });
+
+          if (referrerError) {
+            console.error('[AdminPayments] Error updating referrer successful_referrals:', referrerError);
+            throw referrerError;
+          }
+          console.log('[AdminPayments] Referrer successful_referrals incremented');
+        } else {
+          console.log('[AdminPayments] Referral already active; skipping successful_referrals increment');
         }
-        console.log('[AdminPayments] Referrer successful_referrals incremented');
-
-        // Optional: Update referrer's team size via RPC (if needed)
-        // await supabase.rpc('increment_team_size', { uid: profile.referred_by });
       }
 
       // 8. Refresh the list

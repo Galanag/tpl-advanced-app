@@ -128,10 +128,31 @@ create table if not exists public.withdrawals (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   amount numeric(12,2) not null,
+  phone text,
   status text default 'pending' not null,
   created_at timestamptz default now() not null
 );
 create index if not exists idx_withdrawals_user on public.withdrawals(user_id);
+
+-- Ensure the phone column exists on databases created before it was added
+alter table public.withdrawals add column if not exists phone text;
+alter table public.withdrawals add column if not exists updated_at timestamptz default now() not null;
+
+-- Force status to 'pending' on every insert regardless of client-supplied value.
+-- This closes the gap where an authenticated user could self-approve a withdrawal.
+create or replace function public.enforce_withdrawal_status()
+returns trigger language plpgsql as $$
+begin
+  NEW.status := 'pending';
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_withdrawals_pending_status on public.withdrawals;
+create trigger trg_withdrawals_pending_status
+  before insert on public.withdrawals
+  for each row
+  execute function public.enforce_withdrawal_status();
 
 -- 6b. DEPOSITS TABLE (registration deposits awaiting admin approval)
 create table if not exists public.deposits (
@@ -209,6 +230,18 @@ returns void language sql security definer as $$
   update public.profiles
   set team_size = team_size + 1, updated_at = now()
   where id = uid;
+$$;
+
+create or replace function public.increment_successful_referrals(uid uuid)
+returns void language plpgsql security definer as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Not authorized';
+  end if;
+  update public.profiles
+  set successful_referrals = successful_referrals + 1
+  where id = uid;
+end;
 $$;
 
 create or replace function public.is_admin()
@@ -383,15 +416,33 @@ create policy "commissions_select_own" on public.commissions for select to authe
 
 -- WITHDRAWALS
 drop policy if exists "withdrawals_select_own" on public.withdrawals;
-create policy "withdrawals_select_own" on public.withdrawals for select to authenticated using (auth.uid() = user_id);
+create policy "withdrawals_select_own" on public.withdrawals for select to authenticated using (auth.uid() = user_id or is_admin());
+drop policy if exists "withdrawals_insert_own" on public.withdrawals;
+create policy "withdrawals_insert_own" on public.withdrawals for insert to authenticated with check (auth.uid() = user_id and status = 'pending');
+drop policy if exists "withdrawals_update_admin" on public.withdrawals;
+create policy "withdrawals_update_admin" on public.withdrawals for update to authenticated using (is_admin());
 
 -- DEPOSITS
 drop policy if exists "deposits_select_own_or_admin" on public.deposits;
 create policy "deposits_select_own_or_admin" on public.deposits for select to authenticated using (auth.uid() = user_id or is_admin());
 drop policy if exists "deposits_insert_own" on public.deposits;
-create policy "deposits_insert_own" on public.deposits for insert to authenticated with check (auth.uid() = user_id);
+create policy "deposits_insert_own" on public.deposits for insert to authenticated with check (auth.uid() = user_id and status = 'pending');
 drop policy if exists "deposits_update_admin" on public.deposits;
 create policy "deposits_update_admin" on public.deposits for update to authenticated using (is_admin());
+
+create or replace function public.enforce_deposit_status()
+returns trigger language plpgsql as $$
+begin
+  NEW.status := 'pending';
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_deposits_pending_status on public.deposits;
+create trigger trg_deposits_pending_status
+  before insert on public.deposits
+  for each row
+  execute function public.enforce_deposit_status();
 
 -- =====================================================
 -- 9. SEED DATA (sample videos)
