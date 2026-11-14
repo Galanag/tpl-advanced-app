@@ -1,10 +1,16 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { PlayCircle, Clock, X, Loader2, CheckCircle2, AlertTriangle, Lock, BarChart3, ExternalLink, Sparkles } from 'lucide-react';
+import { PlayCircle, Clock, X, Loader2, CheckCircle2, AlertTriangle, Lock, BarChart3, Sparkles, Pause, Play } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { claimVideoReward, saveProgress } from '../utils/mlm';
 import GlassCard from '../components/GlassCard';
 import SkeletonLoader from '../components/SkeletonLoader';
+
+const extractYouTubeId = (url) => {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=|youtube\.com\/embed\/)([^&\n?#]+)/);
+  return match ? match[1] : null;
+};
 
 const Tasks = () => {
   const { user, profile, refreshProfile } = useAuthStore();
@@ -18,24 +24,24 @@ const Tasks = () => {
   const [userRewardAmount, setUserRewardAmount] = useState(0);
   const [quotaLimit, setQuotaLimit] = useState(profile?.daily_quota_limit || 10);
   const [watchedToday, setWatchedToday] = useState(profile?.daily_videos_watched || 0);
-  // Derived reactively so the quota banner updates after data is fetched
   const quotaReached = watchedToday >= quotaLimit;
-  const quotaReachedLocal = quotaReached;
   const [accountActive, setAccountActive] = useState(profile?.account_status === 'active');
 
   // Modals for feedback
   const [showPendingModal, setShowPendingModal] = useState(false);
   const [showWatchedModal, setShowWatchedModal] = useState(false);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [lastReward, setLastReward] = useState(0);
 
-  // Auto-award state: the task currently "watched" in an external tab
-  const [pendingWatch, setPendingWatch] = useState(null);
-  const [awarding, setAwarding] = useState(false);
-  const [completion, setCompletion] = useState(null); // { title, reward }
-  const [taskError, setTaskError] = useState('');
-
-  const pendingWatchRef = useRef(null);
-  const awardingRef = useRef(false);
+  // Video player modal state
+  const [activeVideo, setActiveVideo] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [playerError, setPlayerError] = useState('');
+  const timerRef = useRef(null);
+  const playerRef = useRef(null);
 
   useEffect(() => {
     if (!user) return;
@@ -106,70 +112,23 @@ const Tasks = () => {
     setLoading(false);
   };
 
-  const awardTask = useCallback(async (video) => {
-    if (awardingRef.current || !user || !video) return;
-    awardingRef.current = true;
-    setAwarding(true);
-    setTaskError('');
-    try {
-      // Treat the task as fully watched when the user returns from the external tab.
-      const reward = await claimVideoReward(user, video, parseInt(video.duration_seconds) || 30);
-      await refreshProfile();
-
-      setWatchedIds((prev) => new Set([...prev, video.id]));
-      setCompletion({ title: video.title, reward });
-      setPendingWatch(null);
-      pendingWatchRef.current = null;
-
-      // Refresh quota / watched counters from the server
-      const { data: fresh } = await supabase.from('profiles').select('daily_videos_watched, daily_quota_limit').eq('id', user.id).single();
-      if (fresh) {
-        setWatchedToday(fresh.daily_videos_watched || 0);
-        setQuotaLimit(fresh.daily_quota_limit || 10);
-      }
-    } catch (err) {
-      setTaskError(err.message || 'Failed to award reward.');
-    } finally {
-      awardingRef.current = false;
-      setAwarding(false);
-    }
-  }, [user, refreshProfile]);
-
-  // When the user returns to the app (focus), auto-award the task opened in a new tab.
-  useEffect(() => {
-    const handleFocus = () => {
-      const video = pendingWatchRef.current;
-      if (!video || awardingRef.current) return;
-      awardTask(video);
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [awardTask]);
-
-  const startWatch = (video) => {
-    setTaskError('');
-
+  // Start watching a video - open the modal and mark in_progress
+  const startWatch = useCallback((video) => {
+    setPlayerError('');
     if (!video.youtube_url) {
-      setTaskError('This task has no video link yet. Please check back soon.');
+      setPlayerError('This task has no video link yet. Please check back soon.');
       return;
     }
-
-    // IMPORTANT: open the popup synchronously as the very first action of the
-    // user click. Browsers block popups that are not triggered synchronously,
-    // so any async Supabase call must come AFTER window.open.
-    const win = window.open(video.youtube_url, '_blank', 'noopener,noreferrer');
-    if (!win) {
-      setTaskError('Popup blocked. Please allow pop-ups for this site to watch this task.');
-      return;
-    }
-
-    // Mark progress so the server knows the task was started (async, after popup)
+    // Mark progress so the server knows the task was started
     if (user?.id) saveProgress(user.id, video.id, 0);
+    
+    // Open modal - this will trigger the timer
+    setActiveVideo(video);
+    setTimeLeft(video.duration_seconds || 30);
+    setTimerRunning(true);
+  }, [user]);
 
-    pendingWatchRef.current = video;
-    setPendingWatch(video);
-  };
-
+  // Handle video click with guards
   const handleVideoClick = (video) => {
     if (!accountActive) {
       setShowPendingModal(true);
@@ -182,19 +141,80 @@ const Tasks = () => {
     }
   };
 
+  // Timer effect
+  useEffect(() => {
+    if (!timerRunning || timeLeft <= 0) {
+      if (timeLeft <= 0 && timerRunning) {
+        setTimerRunning(false);
+      }
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          setTimerRunning(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timerRef.current);
+  }, [timerRunning, timeLeft]);
+
+  // Claim reward when timer is done
+  const handleClaim = useCallback(async () => {
+    if (!activeVideo || claiming || timeLeft > 0) return;
+    setClaiming(true);
+    setPlayerError('');
+    try {
+      const reward = await claimVideoReward(user, activeVideo, activeVideo.duration_seconds || 30);
+      await refreshProfile();
+
+      setWatchedIds((prev) => new Set([...prev, activeVideo.id]));
+      
+      // Refresh quota / watched counters from the server
+      const { data: fresh } = await supabase.from('profiles').select('daily_videos_watched, daily_quota_limit').eq('id', user.id).single();
+      if (fresh) {
+        setWatchedToday(fresh.daily_videos_watched || 0);
+        setQuotaLimit(fresh.daily_quota_limit || 10);
+      }
+
+      // Close modal and show completion
+      setActiveVideo(null);
+      setTimeLeft(0);
+      setTimerRunning(false);
+
+      setShowCompletionModal(true);
+      setLastReward(userRewardAmount);
+    } catch (err) {
+      setPlayerError(err.message || 'Failed to award reward.');
+    } finally {
+      setClaiming(false);
+    }
+  }, [activeVideo, claiming, timeLeft, user, refreshProfile]);
+
+  const closePlayer = () => {
+    clearInterval(timerRef.current);
+    setTimerRunning(false);
+    setActiveVideo(null);
+    setTimeLeft(0);
+    setPlayerError('');
+  };
+
+  const formatTime = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="fade-in-up space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">Tasks</h2>
         <p className="text-white/50 text-sm mt-0.5">Watch videos to earn rewards</p>
-      </div>
-
-      {/* Pop-up notice */}
-      <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 flex items-center gap-3">
-        <ExternalLink size={18} className="text-sky-400 shrink-0" />
-        <p className="text-white/80 text-sm">
-          Please allow pop-ups for this site so you can watch videos. Each task opens in a new tab.
-        </p>
       </div>
 
       {!accountActive && (
@@ -229,24 +249,9 @@ const Tasks = () => {
         </GlassCard>
       )}
 
-      {/* Watching in another tab indicator */}
-      {pendingWatch && (
-        <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 flex items-center gap-3">
-          {awarding ? <Loader2 size={18} className="text-sky-400 animate-spin shrink-0" /> : <ExternalLink size={18} className="text-sky-400 shrink-0" />}
-          <div className="min-w-0">
-            <p className="text-white/90 text-sm font-medium">
-              {awarding ? 'Awarding your reward…' : 'Watching in another tab'}
-            </p>
-            <p className="text-white/50 text-xs truncate">
-              {awarding ? 'Hold on, crediting your balance.' : 'Return to this tab after watching to claim your reward automatically.'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {taskError && (
+      {playerError && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
-          <p className="text-red-400 text-sm">{taskError}</p>
+          <p className="text-red-400 text-sm">{playerError}</p>
         </div>
       )}
 
@@ -291,7 +296,7 @@ const Tasks = () => {
                 </div>
                 <h4 className="text-white/90 text-sm font-semibold line-clamp-2">{video.title}</h4>
                 <p className="text-white/40 text-xs mt-1 flex items-center gap-1">
-                  {isWatched ? 'Reward claimed' : !isAccountInactive && !quotaReachedLocal ? (<><ExternalLink size={11} /> Tap to watch &amp; earn</>) : ''}
+                  {isWatched ? 'Reward claimed' : !isAccountInactive && !quotaReached ? (<><Play size={11} /> Tap to watch & earn</>) : ''}
                 </p>
               </GlassCard>
             );
@@ -305,23 +310,125 @@ const Tasks = () => {
         </div>
       )}
 
-      {/* Task Completed Modal */}
-      {completion && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <GlassCard className="w-full max-w-sm p-6 text-center fade-in-up">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <CheckCircle2 size={36} className="text-emerald-400" />
-            </div>
-            <h3 className="text-white font-bold text-lg mb-1">Task Completed!</h3>
-            <p className="text-white/60 text-sm mb-2 truncate">{completion.title}</p>
-            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-4 py-2 mb-5">
-              <Sparkles size={16} className="text-emerald-400" />
-              <span className="text-emerald-300 font-bold">+{completion.reward} ETB</span>
-            </div>
-            <p className="text-white/40 text-xs mb-5">Your balance has been updated.</p>
-            <button onClick={() => setCompletion(null)} className="btn-primary w-full">
-              Awesome
+      {/* Video Player Modal */}
+      {activeVideo && (
+        <div className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-sm" onClick={closePlayer}>
+          <div className="relative h-full flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+            <GlassCard className="w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+                <h3 className="text-white font-semibold text-sm truncate pr-4">{activeVideo.title}</h3>
+                <button 
+                  onClick={closePlayer}
+                  className="p-1.5 rounded-full hover:bg-white/10 text-white/60 transition-colors active:scale-95 shrink-0"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Video Player */}
+              <div className="flex-1 flex flex-col min-h-0">
+                {(activeVideo.youtube_url && extractYouTubeId(activeVideo.youtube_url)) ? (
+                  <div className="relative w-full aspect-video bg-black flex-shrink-0">
+                    <iframe
+                      ref={playerRef}
+                      width="100%"
+                      height="100%"
+                      src={`https://www.youtube.com/embed/${extractYouTubeId(activeVideo.youtube_url)}?autoplay=1&rel=0&modestbranding=1`}
+                      title="YouTube video player"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="w-full h-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-black rounded-xl">
+                    <div className="w-20 h-20 rounded-full border-4 border-amber-500/30 border-t-amber-500 animate-spin" />
+                    <p className="text-white/50 text-sm">Loading video...</p>
+                  </div>
+                )}
+
+                {/* Timer & Controls */}
+                <div className="px-4 py-4 border-t border-white/10">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                        <Clock size={20} className="text-amber-400" />
+                      </div>
+                      <div>
+                        <p className="text-white/50 text-xs">Time Remaining</p>
+                        <p className="text-white text-2xl font-mono font-bold tabular-nums">{formatTime(timeLeft)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setTimerRunning(!timerRunning)}
+                        disabled={timeLeft <= 0}
+                        className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 text-sm transition-colors active:scale-95 disabled:opacity-50"
+                      >
+                        {timerRunning ? <Pause size={16} /> : <Play size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-600 transition-all duration-1000 ease-linear"
+                      style={{ width: `${Math.min(((activeVideo.duration_seconds - timeLeft) / (activeVideo.duration_seconds || 1)) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Claim Button */}
+                {timeLeft <= 0 && (
+                  <div className="px-4 py-4 border-t border-white/10">
+                    <button
+                      onClick={handleClaim}
+                      disabled={claiming}
+                      className={`btn-primary w-full flex items-center justify-center gap-2 ${claiming ? '!bg-emerald-500/20 !text-emerald-400 !border !border-emerald-500/30' : ''}`}
+                    >
+                      {claiming ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          Claiming…
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={18} />
+                          Claim {userRewardAmount} ETB Reward
+                        </>
+                      )}
+                    </button>
+                    {playerError && <p className="text-red-400 text-sm mt-2 text-center">{playerError}</p>}
+                  </div>
+                )}
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+      )}
+
+      {/* Video Completion Modal */}
+      {showCompletionModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <GlassCard className="w-full max-w-sm p-6 fade-in-up">
+            <button onClick={() => setShowCompletionModal(false)} className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50 transition-colors active:scale-95">
+              <X size={18} />
             </button>
+            <div className="text-center mb-6">
+              <h3 className="text-white font-bold text-lg mb-2">Reward Awarded!</h3>
+              <p className="text-white/50 text-sm mb-3">
+                You have earned {lastReward} ETB for completing the task.
+              </p>
+              <div className="flex justify-center space-x-4">
+                <button onClick={() => setShowCompletionModal(false)} className="btn-secondary">
+                  OK
+                </button>
+                <button onClick={() => setShowCompletionModal(false) && closePlayer()} className="btn-primary">
+                  Continue
+                </button>
+              </div>
+            </div>
           </GlassCard>
         </div>
       )}
