@@ -65,7 +65,7 @@ const Tasks = () => {
               break;
             case 'Basic':
             default:
-              amount = parseFloat(settingsMap.basic_reward_amount) || 10;
+              amount = parseFloat(settingsMap.basic_reward_amount) || 600;
               break;
           }
           setUserRewardAmount(amount);
@@ -148,17 +148,24 @@ const Tasks = () => {
 
   const startWatch = (video) => {
     setTaskError('');
+
     if (!video.youtube_url) {
       setTaskError('This task has no video link yet. Please check back soon.');
       return;
     }
-    // Mark progress so the server knows the task was started
-    if (user?.id) saveProgress(user.id, video.id, 0);
+
+    // IMPORTANT: open the popup synchronously as the very first action of the
+    // user click. Browsers block popups that are not triggered synchronously,
+    // so any async Supabase call must come AFTER window.open.
     const win = window.open(video.youtube_url, '_blank', 'noopener,noreferrer');
     if (!win) {
-      setTaskError('Popup blocked. Please allow pop-ups to watch this task.');
+      setTaskError('Popup blocked. Please allow pop-ups for this site to watch this task.');
       return;
     }
+
+    // Mark progress so the server knows the task was started (async, after popup)
+    if (user?.id) saveProgress(user.id, video.id, 0);
+
     pendingWatchRef.current = video;
     setPendingWatch(video);
   };
@@ -180,6 +187,14 @@ const Tasks = () => {
       <div>
         <h2 className="text-xl font-bold text-white">Tasks</h2>
         <p className="text-white/50 text-sm mt-0.5">Watch videos to earn rewards</p>
+      </div>
+
+      {/* Pop-up notice */}
+      <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 flex items-center gap-3">
+        <ExternalLink size={18} className="text-sky-400 shrink-0" />
+        <p className="text-white/80 text-sm">
+          Please allow pop-ups for this site so you can watch videos. Each task opens in a new tab.
+        </p>
       </div>
 
       {!accountActive && (

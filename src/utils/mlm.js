@@ -59,7 +59,7 @@ export const claimVideoReward = async (user, video, watchedSeconds) => {
       break;
     case 'Basic':
     default:
-      rewardAmount = parseFloat(settingsMap.basic_reward_amount) || 10;
+      rewardAmount = parseFloat(settingsMap.basic_reward_amount) || 600;
       break;
   }
 
