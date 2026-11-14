@@ -25,6 +25,12 @@ create table if not exists public.profiles (
   last_quota_reset timestamptz default now(),
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null,
+  vip_level text default 'Basic' not null,
+  total_deposited numeric(12,2) default 0 not null,
+  successful_referrals int default 0 not null,
+  payment_method text,
+  payment_account_name text,
+  payment_account_number text,
   constraint account_status_check check (account_status in ('pending','active','suspended'))
 );
 
@@ -127,6 +133,21 @@ create table if not exists public.withdrawals (
 );
 create index if not exists idx_withdrawals_user on public.withdrawals(user_id);
 
+-- 6b. DEPOSITS TABLE (registration deposits awaiting admin approval)
+create table if not exists public.deposits (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  amount numeric(12,2) not null,
+  payment_method text,
+  transaction_id text,
+  status text default 'pending' not null,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null,
+  constraint deposits_status_check check (status in ('pending','approved','rejected'))
+);
+create index if not exists idx_deposits_user on public.deposits(user_id);
+create index if not exists idx_deposits_status on public.deposits(status);
+
 -- =====================================================
 -- 7. HELPER FUNCTIONS
 -- =====================================================
@@ -152,7 +173,11 @@ drop function if exists public.handle_new_user();
 -- Alter profiles table to add missing columns (if they don't exist)
 alter table public.profiles
   add column if not exists vip_level text default 'Basic' not null,
-  add column if not exists total_deposited numeric(12,2) default 0 not null;
+  add column if not exists total_deposited numeric(12,2) default 0 not null,
+  add column if not exists successful_referrals int default 0 not null,
+  add column if not exists payment_method text,
+  add column if not exists payment_account_name text,
+  add column if not exists payment_account_number text;
 
 -- Recreate the handle_new_user function with SECURITY DEFINER
 create or replace function public.handle_new_user()
@@ -185,14 +210,17 @@ begin
     limit 1;
   end if;
 
+  -- Insert the profile (idempotent: safe if signup is retried)
   insert into public.profiles (
     id, phone, full_name, balance, referral_code, referred_by, level,
     team_size, is_admin, account_status, vip_level, total_deposited,
-    daily_quota_limit, daily_videos_watched, successful_referrals,
+    successful_referrals,
+    payment_method, payment_account_name, payment_account_number,
+    daily_quota_limit, daily_videos_watched,
     last_quota_reset, created_at, updated_at
   ) values (
     NEW.id,
-    NEW.raw_user_meta_data->>'phone', -- actual phone number
+    coalesce(nullif(NEW.raw_user_meta_data->>'phone', ''), NEW.email),
     NEW.raw_user_meta_data->>'full_name',
     0,
     my_code,
@@ -203,18 +231,23 @@ begin
     'pending',
     'Basic', -- default vip_level
     0,       -- default total_deposited
+    0,       -- default successful_referrals
+    null,
+    null,
+    null,
     10,
-    0,
     0,
     now(),
     now(),
     now()
-  );
+  )
+  on conflict (id) do nothing;
 
-  -- Create a referral record
+  -- Create a referral record when the user was referred
   if inviter_id is not null then
     insert into public.referrals (referrer_id, referred_id, status)
-    values (inviter_id, NEW.id, 'pending_payment');
+    values (inviter_id, NEW.id, 'pending_payment')
+    on conflict (referrer_id, referred_id) do nothing;
   end if;
 
   return NEW;
@@ -274,6 +307,9 @@ drop policy if exists "referrals_select_related_or_admin" on public.referrals;
 create policy "referrals_select_related_or_admin" on public.referrals for select to authenticated using (auth.uid() = referrer_id or auth.uid() = referred_id or is_admin());
 drop policy if exists "referrals_insert_admin" on public.referrals;
 create policy "referrals_insert_admin" on public.referrals for insert to authenticated with check (is_admin());
+-- Allow a newly referred user to create their own referral link record (fallback when the auth trigger did not run)
+drop policy if exists "referrals_insert_referred" on public.referrals;
+create policy "referrals_insert_referred" on public.referrals for insert to authenticated with check (auth.uid() = referred_id);
 drop policy if exists "referrals_update_admin" on public.referrals;
 create policy "referrals_update_admin" on public.referrals for update to authenticated using (is_admin());
 
@@ -290,6 +326,14 @@ create policy "commissions_select_own" on public.commissions for select to authe
 -- WITHDRAWALS
 drop policy if exists "withdrawals_select_own" on public.withdrawals;
 create policy "withdrawals_select_own" on public.withdrawals for select to authenticated using (auth.uid() = user_id);
+
+-- DEPOSITS
+drop policy if exists "deposits_select_own_or_admin" on public.deposits;
+create policy "deposits_select_own_or_admin" on public.deposits for select to authenticated using (auth.uid() = user_id or is_admin());
+drop policy if exists "deposits_insert_own" on public.deposits;
+create policy "deposits_insert_own" on public.deposits for insert to authenticated with check (auth.uid() = user_id);
+drop policy if exists "deposits_update_admin" on public.deposits;
+create policy "deposits_update_admin" on public.deposits for update to authenticated using (is_admin());
 
 -- =====================================================
 -- 9. SEED DATA (sample videos)

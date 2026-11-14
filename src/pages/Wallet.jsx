@@ -30,6 +30,7 @@ const Wallet = () => {
   // Withdrawal limits
   const [withdrawalMinimum, setWithdrawalMinimum] = useState(100); // default
   const [referralsRequired, setReferralsRequired] = useState(5); // default
+  const [settingsLoading, setSettingsLoading] = useState(true);
   
   const balance = parseFloat(profile?.balance) || 0;
   const successfulReferrals = parseInt(profile?.successful_referrals || 0);
@@ -38,7 +39,23 @@ const Wallet = () => {
   useEffect(() => {
     fetchFinancialMetrics();
     fetchTransactions();
+    fetchSettings();
   }, [profile?.id]);
+  
+  const fetchSettings = async () => {
+    try {
+      const { data, error } = await supabase.from('admin_settings').select('key, value');
+      if (error) throw error;
+      const map = {};
+      (data || []).forEach((s) => { map[s.key] = s.value; });
+      setWithdrawalMinimum(parseInt(map.withdrawal_minimum || 100, 10));
+      setReferralsRequired(parseInt(map.referrals_required_to_withdraw || 5, 10));
+    } catch (err) {
+      console.error('Error fetching settings:', err);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
   
   const fetchFinancialMetrics = async () => {
     if (!user?.id) return;
@@ -223,7 +240,7 @@ const Wallet = () => {
         }`}>{message.text}</div>
       )}
       
-      {showReferralGate && (
+          {showReferralGate && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80">
           <GlassCard className="w-full max-w-sm p-6 text-center fade-in-up">
             <AlertTriangle size={48} className="text-amber-400 mx-auto mb-3" />
@@ -237,6 +254,13 @@ const Wallet = () => {
               </button>
             </div>
           </GlassCard>
+        </div>
+      )}
+
+      {/* Referral Withdrawal Warning */}
+      {successfulReferrals < referralsRequired && (
+        <div className="rounded-xl px-4 py-3 border bg-amber-500/10 border-amber-500/30 text-amber-400 text-sm">
+          You need {Math.max(referralsRequired - successfulReferrals, 0)} more active referral{Math.max(referralsRequired - successfulReferrals, 0) === 1 ? '' : 's'} to withdraw.
         </div>
       )}
       

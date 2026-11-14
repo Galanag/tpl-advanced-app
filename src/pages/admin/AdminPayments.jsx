@@ -194,10 +194,22 @@ const AdminPayments = () => {
         }
         console.log('[AdminPayments] Referral status updated to active');
 
-        // Increment referrer's successful_referrals
+        // Fetch the referrer's current successful_referrals and increment it
+        const { data: referrerProfile, error: referrerFetchError } = await supabase
+          .from('profiles')
+          .select('successful_referrals')
+          .eq('id', profile.referred_by)
+          .single();
+
+        if (referrerFetchError) {
+          console.error('[AdminPayments] Error fetching referrer profile:', referrerFetchError);
+          throw referrerFetchError;
+        }
+
+        const currentReferrals = parseInt(referrerProfile?.successful_referrals || 0);
         const { error: referrerError } = await supabase
           .from('profiles')
-          .update({ successful_referrals: (parseFloat(profile.successful_referrals || 0) + 1) })
+          .update({ successful_referrals: currentReferrals + 1 })
           .eq('id', profile.referred_by);
 
         if (referrerError) {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { supabase } from '../../lib/supabase';
-import { Loader2, Banknote } from 'lucide-react';
+import { Loader2, Banknote, User, Phone } from 'lucide-react';
 
 const PaymentMethods = () => {
   const { profile, refreshProfile } = useAuthStore();

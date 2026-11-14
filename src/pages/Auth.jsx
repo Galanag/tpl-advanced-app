@@ -31,7 +31,7 @@ const Auth = () => {
     if (!form.phone.trim()) return 'Phone number is required';
     if (form.phone.replace(/[^0-9]/g, '').length < 9) return 'Enter a valid phone number';
     if (!form.password) return 'Password is required';
-    if (form.password.length < 6) return 'Password must be at least 6 characters';
+    // Allow weak passwords — removed minimum length requirement
     if (tab === 'register' && !form.fullName.trim()) return 'Full name is required';
     return '';
   };

@@ -14,7 +14,7 @@ const formatTime = (s) => {
 };
 
 const VideoPlayerModal = ({ video, initialSeconds = 0, onClose, onClaimed, onQuotaReached }) => {
-  const { user, refreshProfile } = useAuthStore();
+  const { user, profile, refreshProfile } = useAuthStore();
   const total = video.duration_seconds || 30;
   const [timeLeft, setTimeLeft] = useState(Math.max(total - initialSeconds, 0));
   const [finished, setFinished] = useState(initialSeconds >= total);
@@ -35,7 +35,8 @@ const VideoPlayerModal = ({ video, initialSeconds = 0, onClose, onClaimed, onQuo
         const settingsMap = {};
         (settings || []).forEach((s) => { settingsMap[s.key] = s.value; });
         let amount = 0;
-        switch (user.profile?.vip_level) {
+        const vipLevel = profile?.vip_level || 'Basic';
+        switch (vipLevel) {
           case 'VIP1':
             amount = parseFloat(settingsMap.vip1_reward_amount) || 15;
             break;
@@ -58,7 +59,7 @@ const VideoPlayerModal = ({ video, initialSeconds = 0, onClose, onClaimed, onQuo
       }
     };
     fetchReward();
-  }, [user]);
+  }, [user, profile?.vip_level]);
 
   useEffect(() => {
     if (finished) return;
@@ -206,8 +207,9 @@ const Tasks = () => {
   const [userRewardAmount, setUserRewardAmount] = useState(0);
   const [quotaLimit, setQuotaLimit] = useState(profile?.daily_quota_limit || 10);
   const [watchedToday, setWatchedToday] = useState(profile?.daily_videos_watched || 0);
-   const [quotaReached, setQuotaReached] = useState(watchedToday >= quotaLimit);
-   const quotaReachedLocal = quotaReached;
+  // Derived reactively so the quota banner updates after data is fetched
+  const quotaReached = watchedToday >= quotaLimit;
+  const quotaReachedLocal = quotaReached;
   const [accountActive, setAccountActive] = useState(profile?.account_status === 'active');
 
   // Modals for feedback
@@ -343,9 +345,8 @@ const Tasks = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {videos.map((video) => {
             const isWatched = watchedIds.has(video.id);
-             const quotaReachedLocal = quotaReached;
             const isAccountInactive = !accountActive;
-             const disabled = isWatched || quotaReachedLocal || isAccountInactive;
+            const disabled = isWatched || quotaReached || isAccountInactive;
             return (
               <GlassCard
                 key={video.id}
@@ -354,7 +355,7 @@ const Tasks = () => {
                     setShowPendingModal(true);
                   } else if (isWatched) {
                     setShowWatchedModal(true);
-                  } else if (quotaReachedLocal) {
+                  } else if (quotaReached) {
                     setShowQuotaModal(true);
                   } else {
                     handleVideoClick(video);
