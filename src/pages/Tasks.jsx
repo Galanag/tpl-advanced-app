@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { PlayCircle, Clock, X, Loader2, CheckCircle2, AlertTriangle, Lock, BarChart3, Sparkles, Pause, Play } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { PlayCircle, Clock, X, Loader2, CheckCircle2, AlertTriangle, Lock, BarChart3, Pause, Play } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { claimVideoReward, saveProgress } from '../utils/mlm';
@@ -14,6 +15,7 @@ const extractYouTubeId = (url) => {
 
 const Tasks = () => {
   const { user, profile, refreshProfile } = useAuthStore();
+  const navigate = useNavigate();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [watchedIds, setWatchedIds] = useState(new Set());
@@ -33,6 +35,11 @@ const Tasks = () => {
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [lastReward, setLastReward] = useState(0);
+
+  // Pending account info (registration fee + Telebirr payment details)
+  const [registrationFee, setRegistrationFee] = useState(0);
+  const [telebirrName, setTelebirrName] = useState('');
+  const [telebirrNumber, setTelebirrNumber] = useState('');
 
   // Video player modal state
   const [activeVideo, setActiveVideo] = useState(null);
@@ -84,6 +91,26 @@ const Tasks = () => {
   }, [user]);
 
   useEffect(() => { fetchVideos(); }, [user]);
+
+  // Fetch registration fee + Telebirr payment details from admin_settings
+  useEffect(() => {
+    if (!user) return;
+    const fetchSettings = async () => {
+      try {
+        const { data } = await supabase.from('admin_settings').select('key, value');
+        if (data) {
+          const map = {};
+          data.forEach((s) => { map[s.key] = s.value; });
+          setRegistrationFee(parseFloat(map.registration_fee) || 500);
+          setTelebirrName(map.telebirr_name || '');
+          setTelebirrNumber(map.telebirr_number || '');
+        }
+      } catch (err) {
+        console.error('Failed to fetch admin settings:', err);
+      }
+    };
+    fetchSettings();
+  }, [user]);
 
   const fetchVideos = async () => {
     setLoading(true);
@@ -442,13 +469,14 @@ const Tasks = () => {
             </button>
             <div className="text-center mb-6">
               <h3 className="text-white font-bold text-lg mb-2">Account Not Active</h3>
-              <p className="text-white/50 text-sm mb-5">
-                Please pay the registration fee and wait for admin approval to start earning.
-              </p>
-              <div className="flex justify-center">
-                <button onClick={() => setShowPendingModal(false)} className="btn-secondary">
-                  OK
-                </button>
+              <p className="text-white/50 text-sm mb-3">Pay the registration fee and upload the proof to activate your account.</p>
+              <div className="space-y-3 mb-5">
+                <p className="text-white/60 text-sm">Registration Fee: {registrationFee} ETB</p>
+                <p className="text-white/60 text-sm">Send Payment To: {telebirrName} ({telebirrNumber})</p>
+              </div>
+              <div className="flex justify-center space-x-4">
+                <button onClick={() => setShowPendingModal(false)} className="btn-secondary">OK</button>
+                <button onClick={() => { setShowPendingModal(false); navigate('/deposit'); }} className="btn-primary">Go to Deposit Page to Upload Proof</button>
               </div>
             </div>
           </GlassCard>

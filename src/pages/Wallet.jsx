@@ -238,16 +238,17 @@ const Wallet = () => {
       )}
       
       {showWithdraw && (
-        <WithdrawModal
-          balance={availableBalance}
-          user={user}
-          refreshProfile={refreshProfile}
-          withdrawalMinimum={withdrawalMinimum}
-          referralsRequired={referralsRequired}
-          successfulReferrals={successfulReferrals}
-          onClose={() => setShowWithdraw(false)}
-          onSuccess={(text) => { setMessage({ type: 'success', text }); setShowWithdraw(false); fetchFinancialMetrics(); fetchTransactions(); }}
-        />
+          <WithdrawModal
+            balance={availableBalance}
+            user={user}
+            profile={profile}
+            refreshProfile={refreshProfile}
+            withdrawalMinimum={withdrawalMinimum}
+            referralsRequired={referralsRequired}
+            successfulReferrals={successfulReferrals}
+            onClose={() => setShowWithdraw(false)}
+            onSuccess={(text) => { setMessage({ type: 'success', text }); setShowWithdraw(false); fetchFinancialMetrics(); fetchTransactions(); }}
+          />
       )}
       
       {/* Transaction History */}

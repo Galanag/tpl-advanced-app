@@ -67,8 +67,8 @@ const AdminSettings = () => {
       }
       await Promise.all(updates);
       setSuccess('Settings updated successfully.');
-      // Refresh the settings in the store
-      await useAdminStore.getState().fetchSettings();
+      // Do NOT call fetchSettings() here — updateSetting already updates the store state.
+      // Re-fetching from the server can revert changes if the write failed silently.
     } catch (err) {
       setError(err.message || 'Failed to update settings');
     } finally {

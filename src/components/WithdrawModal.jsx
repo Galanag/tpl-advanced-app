@@ -3,7 +3,7 @@ import { Loader2, X, AlertTriangle, Copy, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import GlassCard from './GlassCard';
 
-const WithdrawModal = ({ balance, user, refreshProfile, withdrawalMinimum, referralsRequired, successfulReferrals, onClose, onSuccess }) => {
+const WithdrawModal = ({ balance, user, profile, refreshProfile, withdrawalMinimum, referralsRequired, successfulReferrals, onClose, onSuccess }) => {
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -11,10 +11,13 @@ const WithdrawModal = ({ balance, user, refreshProfile, withdrawalMinimum, refer
   const [showReferralGate, setShowReferralGate] = useState(false);
 
   const minWithdrawal = withdrawalMinimum || 100;
-  const referralLink = `https://hidase.app/ref/${user?.referral_code || ''}`;
   const [copied, setCopied] = useState(false);
+  const [copyMsg, setCopyMsg] = useState('');
 
-  const handleWithdraw = async (e) => {
+  // Build the referral link from the user's own referral code and the current origin
+  const referralLink = `${window.location.origin}/auth?ref=${profile?.referral_code || ''}`;
+
+const handleWithdraw = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -47,9 +50,11 @@ const WithdrawModal = ({ balance, user, refreshProfile, withdrawalMinimum, refer
     try {
       await navigator.clipboard.writeText(referralLink);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      setCopyMsg('Link copied!');
+      setTimeout(() => { setCopied(false); setCopyMsg(''); }, 1800);
     } catch {
-      /* noop */
+      setCopyMsg('Failed to copy');
+      setTimeout(() => setCopyMsg(''), 1800);
     }
   };
 
@@ -99,7 +104,7 @@ const WithdrawModal = ({ balance, user, refreshProfile, withdrawalMinimum, refer
             </div>
             <h4 className="text-white font-bold text-lg mb-2">Withdrawal Locked</h4>
             <p className="text-white/60 text-sm mb-5">
-              To withdraw your {minWithdrawal} ETB, you must invite {referralsRequired} friends who have paid the registration fee. You currently have {successfulReferrals} active referral{successfulReferrals !== 1 ? 's' : ''}.
+              To withdraw your {amount} ETB, you must invite {referralsRequired} friends who have paid the registration fee. You currently have {successfulReferrals} active referrals.
             </p>
             <div className="flex gap-3">
               <button type="button" onClick={() => setShowReferralGate(false)} className="btn-secondary flex-1">Close</button>
@@ -107,6 +112,9 @@ const WithdrawModal = ({ balance, user, refreshProfile, withdrawalMinimum, refer
                 {copied ? <><CheckCircle2 size={16} /> Copied</> : <><Copy size={16} /> Copy Referral Link</>}
               </button>
             </div>
+            {copyMsg && (
+              <p className={`text-xs mt-3 ${copied ? 'text-emerald-400' : 'text-red-400'}`}>{copyMsg}</p>
+            )}
           </GlassCard>
         </div>
       )}
