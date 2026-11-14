@@ -33,13 +33,23 @@ export const claimVideoReward = async (user, video, watchedSeconds) => {
     throw new Error(`Watch time validation failed. You watched ${watchedSeconds}s of ${requiredSeconds}s required.`);
   }
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+  if (profileError) throw new Error(`Failed to load profile: ${profileError.message}`);
   if (!profile) throw new Error('Profile not found');
   if (profile.account_status !== 'active') throw new Error('Your account is not active. Please complete registration.');
 
   const quotaLimit = profile.daily_quota_limit || 10;
   const watchedToday = profile.daily_videos_watched || 0;
   if (watchedToday >= quotaLimit) throw new Error('Daily quota reached. Please come back tomorrow.');
+
+  // --- ATOMIC: check for existing completion BEFORE any writes ---
+  const { data: existingProgress, error: progressCheckError } = await supabase.from('user_progress').select('status').eq('user_id', user.id).eq('video_id', video.id).single();
+  if (progressCheckError && progressCheckError.code !== 'PGRST116') {
+    throw new Error(`Failed to check existing progress: ${progressCheckError.message}`);
+  }
+  if (existingProgress?.status === 'completed') {
+    throw new Error('You have already claimed the reward for this task.');
+  }
 
   // Get reward amount based on VIP level from admin settings
   const { data: settings } = await supabase.from('admin_settings').select('*');
@@ -63,20 +73,25 @@ export const claimVideoReward = async (user, video, watchedSeconds) => {
       break;
   }
 
-  await supabase.from('user_progress').upsert({
+  // --- ATOMIC: persist completion BEFORE balance update ---
+  const { error: upsertError } = await supabase.from('user_progress').upsert({
     user_id: user.id,
     video_id: video.id,
     status: 'completed',
     watched_seconds: watchedSeconds,
     completed_at: new Date().toISOString(),
   }, { onConflict: 'user_id,video_id' });
+  if (upsertError) throw new Error(`Failed to save progress: ${upsertError.message}`);
 
-  await supabase.from('watch_history').insert({ user_id: user.id, video_id: video.id, status: 'completed' });
+  const { error: historyError } = await supabase.from('watch_history').insert({ user_id: user.id, video_id: video.id, status: 'completed' });
+  if (historyError) throw new Error(`Failed to record watch history: ${historyError.message}`);
 
-  await supabase.from('profiles').update({
+  // Only now update balance (only reached if both writes above succeeded)
+  const { error: balanceError } = await supabase.from('profiles').update({
     balance: (parseFloat(profile.balance) || 0) + rewardAmount,
     daily_videos_watched: watchedToday + 1,
   }).eq('id', user.id);
+  if (balanceError) throw new Error(`Failed to update balance: ${balanceError.message}`);
 
   await distributeCommissions(user.id, rewardAmount);
   return rewardAmount;

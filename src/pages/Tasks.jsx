@@ -83,7 +83,7 @@ const Tasks = () => {
     fetchUserData();
   }, [user]);
 
-  useEffect(() => { fetchVideos(); }, []);
+  useEffect(() => { fetchVideos(); }, [user]);
 
   const fetchVideos = async () => {
     setLoading(true);
