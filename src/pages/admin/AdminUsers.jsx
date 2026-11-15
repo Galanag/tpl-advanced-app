@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Users, UserCheck, UserX, CheckCircle2, Loader2, Banknote, X } from 'lucide-react';
+import { Search, Users, UserCheck, UserX, CheckCircle2, Loader2, Banknote, X, Edit } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
 import { supabase } from '../../lib/supabase';
 import GlassCard from '../../components/GlassCard';
@@ -24,6 +24,7 @@ const AdminUsers = () => {
   const [financialData, setFinancialData] = useState({});
   const [viewDetailsUser, setViewDetailsUser] = useState(null);
   const [editUser, setEditUser] = useState(null);
+  const [savingUser, setSavingUser] = useState(null);
   const [loadingFinancial, setLoadingFinancial] = useState(false);
 
   // Mount guard for async operations
@@ -95,13 +96,18 @@ const AdminUsers = () => {
 
   const handleActivate = async (userId) => {
     setActivating(userId);
-    try { await activateUser(userId); } finally { setActivating(null); }
+    try { 
+      await activateUser(userId); 
+    } finally { 
+      setActivating(null); 
+    }
   };
 
   const pendingCount = users.filter((u) => u.account_status === 'pending').length;
   const activeCount = users.filter((u) => u.account_status === 'active').length;
 
   const handleCloseDetails = () => setViewDetailsUser(null);
+  
   const handleSaveEdit = async () => {
     if (!editUser) return;
     setSavingUser(editUser.id);
@@ -122,14 +128,18 @@ const AdminUsers = () => {
           payment_account_number: editUser.payment_account_number,
         })
         .eq('id', editUser.id);
+        
       if (error) throw error;
       setEditUser(null);
-      setSavingUser(null);
-      fetchUsers(search);
+      fetchUsers(search); // Refresh the list
     } catch (err) {
       console.error('Error saving user edits:', err);
+      alert('Failed to save user edits. Please try again.');
+    } finally {
+      setSavingUser(null);
     }
   };
+
   const handleOpenDetails = (user) => setViewDetailsUser(user);
 
   return (
@@ -176,7 +186,7 @@ const AdminUsers = () => {
                 <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border shrink-0 ${STATUS_COLORS[user.account_status] || STATUS_COLORS.pending}`}>
                   {user.account_status}
                 </span>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1 shrink-0 hidden md:flex">
                   <span className="text-white/50 text-xs">Bal: {(parseFloat(user.balance) || 0).toFixed(1)}</span>
                   <span className="text-white/50 text-xs ml-2">Dep: {fin.deposits.toFixed(1)}</span>
                   <span className="text-white/50 text-xs ml-2">Wd: {fin.withdrawn.toFixed(1)}</span>
@@ -235,7 +245,7 @@ const AdminUsers = () => {
       {/* User Details Modal */}
       {viewDetailsUser && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80">
-          <GlassCard className="w-full max-w-2xl p-6 fade-in-up">
+          <GlassCard className="w-full max-w-2xl p-6 relative fade-in-up">
             <button
               onClick={handleCloseDetails}
               className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50 transition-colors active:scale-95"
@@ -304,210 +314,208 @@ const AdminUsers = () => {
           </GlassCard>
         </div>
       )}
+
+      {/* Edit User Modal - MOVED INSIDE RETURN */}
+      {editUser && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80">
+          <GlassCard className="w-full max-w-2xl p-6 relative fade-in-up max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setEditUser(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50 transition-colors active:scale-95"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-white font-bold text-xl mb-4">Edit User</h3>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveEdit();
+              }}
+            >
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Full Name</label>
+                  <input
+                    type="text"
+                    name="full_name"
+                    value={editUser?.full_name || ''}
+                    onChange={(e) =>
+                      setEditUser((prev) => ({ ...prev, full_name: e.target.value }))
+                    }
+                    className="glass-input"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Phone</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={editUser?.phone || ''}
+                    onChange={(e) =>
+                      setEditUser((prev) => ({ ...prev, phone: e.target.value }))
+                    }
+                    className="glass-input"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Account Status</label>
+                  <select
+                    name="account_status"
+                    value={editUser?.account_status || 'pending'}
+                    onChange={(e) =>
+                      setEditUser((prev) => ({ ...prev, account_status: e.target.value }))
+                    }
+                    className="glass-input"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">VIP Level</label>
+                  <select
+                    name="vip_level"
+                    value={editUser?.vip_level || 'Basic'}
+                    onChange={(e) =>
+                      setEditUser((prev) => ({ ...prev, vip_level: e.target.value }))
+                    }
+                    className="glass-input"
+                  >
+                    <option value="Basic">Basic</option>
+                    <option value="VIP1">VIP1</option>
+                    <option value="VIP2">VIP2</option>
+                    <option value="VIP3">VIP3</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Balance (ETB)</label>
+                  <input
+                    type="number"
+                    name="balance"
+                    value={editUser?.balance || ''}
+                    onChange={(e) =>
+                      setEditUser((prev) => ({ ...prev, balance: e.target.value }))
+                    }
+                    className="glass-input"
+                    step="0.01"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Team Size</label>
+                  <input
+                    type="number"
+                    name="team_size"
+                    value={editUser?.team_size || ''}
+                    onChange={(e) =>
+                      setEditUser((prev) => ({ ...prev, team_size: e.target.value }))
+                    }
+                    className="glass-input"
+                    min="0"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Total Deposited (ETB)</label>
+                  <input
+                    type="number"
+                    name="total_deposited"
+                    value={editUser?.total_deposited || ''}
+                    onChange={(e) =>
+                      setEditUser((prev) => ({ ...prev, total_deposited: e.target.value }))
+                    }
+                    className="glass-input"
+                    step="0.01"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Successful Referrals</label>
+                  <input
+                    type="number"
+                    name="successful_referrals"
+                    value={editUser?.successful_referrals || ''}
+                    onChange={(e) =>
+                      setEditUser((prev) => ({ ...prev, successful_referrals: e.target.value }))
+                    }
+                    className="glass-input"
+                    min="0"
+                    step="1"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Payment Method</label>
+                  <input
+                    type="text"
+                    name="payment_method"
+                    value={editUser?.payment_method || ''}
+                    onChange={(e) =>
+                      setEditUser((prev) => ({ ...prev, payment_method: e.target.value }))
+                    }
+                    className="glass-input"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/50 text-sm block mb-1.5">Account Name</label>
+                  <input
+                    type="text"
+                    name="payment_account_name"
+                    value={editUser?.payment_account_name || ''}
+                    onChange={(e) =>
+                      setEditUser((prev) => ({ ...prev, payment_account_name: e.target.value }))
+                    }
+                    className="glass-input"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-white/50 text-sm block mb-1.5">Account Number</label>
+                <input
+                  type="text"
+                  name="payment_account_number"
+                  value={editUser?.payment_account_number || ''}
+                  onChange={(e) =>
+                    setEditUser((prev) => ({ ...prev, payment_account_number: e.target.value }))
+                  }
+                  className="glass-input"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setEditUser(null)}
+                  className="btn-secondary flex-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingUser}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                >
+                  {savingUser ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      Saving…
+                    </>
+                  ) : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 };
 
-  {/* Edit User Modal */}
-  {editUser && (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80">
-      <GlassCard className="w-full max-w-2xl p-6 fade-in-up">
-        <button
-          onClick={() => setEditUser(null)}
-          className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50 transition-colors active:scale-95"
-        >
-          <X size={18} />
-        </button>
-        <h3 className="text-white font-bold text-xl mb-4">Edit User</h3>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSaveEdit();
-          }}
-        >
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-white/50 text-sm block mb-1.5">Full Name</label>
-              <input
-                type="text"
-                name="full_name"
-                value={editUser?.full_name || ''}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, full_name: e.target.value }))
-                }
-                className="glass-input"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-white/50 text-sm block mb-1.5">Phone</label>
-              <input
-                type="tel"
-                name="phone"
-                value={editUser?.phone || ''}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, phone: e.target.value }))
-                }
-                className="glass-input"
-                required
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-white/50 text-sm block mb-1.5">Account Status</label>
-              <select
-                name="account_status"
-                value={editUser?.account_status || 'pending'}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, account_status: e.target.value }))
-                }
-                className="glass-input"
-              >
-                <option value="pending">Pending</option>
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-white/50 text-sm block mb-1.5">VIP Level</label>
-              <select
-                name="vip_level"
-                value={editUser?.vip_level || 'Basic'}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, vip_level: e.target.value }))
-                }
-                className="glass-input"
-              >
-                <option value="Basic">Basic</option>
-                <option value="VIP1">VIP1</option>
-                <option value="VIP2">VIP2</option>
-                <option value="VIP3">VIP3</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-white/50 text-sm block mb-1.5">Balance (ETB)</label>
-              <input
-                type="number"
-                name="balance"
-                value={editUser?.balance || ''}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, balance: e.target.value }))
-                }
-                className="glass-input"
-                step="0.01"
-              />
-            </div>
-            <div>
-              <label className="text-white/50 text-sm block mb-1.5">Team Size</label>
-              <input
-                type="number"
-                name="team_size"
-                value={editUser?.team_size || ''}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, team_size: e.target.value }))
-                }
-                className="glass-input"
-                min="0"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-white/50 text-sm block mb-1.5">Total Deposited (ETB)</label>
-              <input
-                type="number"
-                name="total_deposited"
-                value={editUser?.total_deposited || ''}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, total_deposited: e.target.value }))
-                }
-                className="glass-input"
-                step="0.01"
-              />
-            </div>
-            <div>
-              <label className="text-white/50 text-sm block mb-1.5">Successful Referrals</label>
-              <input
-                type="number"
-                name="successful_referrals"
-                value={editUser?.successful_referrals || ''}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, successful_referrals: e.target.value }))
-                }
-                className="glass-input"
-                min="0"
-                step="1"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-white/50 text-sm block mb-1.5">Payment Method</label>
-              <input
-                type="text"
-                name="payment_method"
-                value={editUser?.payment_method || ''}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, payment_method: e.target.value }))
-                }
-                className="glass-input"
-              />
-            </div>
-            <div>
-              <label className="text-white/50 text-sm block mb-1.5">Account Name</label>
-              <input
-                type="text"
-                name="payment_account_name"
-                value={editUser?.payment_account_name || ''}
-                onChange={(e) =>
-                  setEditUser((prev) => ({ ...prev, payment_account_name: e.target.value }))
-                }
-                className="glass-input"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-white/50 text-sm block mb-1.5">Account Number</label>
-            <input
-              type="text"
-              name="payment_account_number"
-              value={editUser?.payment_account_number || ''}
-              onChange={(e) =>
-                setEditUser((prev) => ({ ...prev, payment_account_number: e.target.value }))
-              }
-              className="glass-input"
-            />
-          </div>
-
-          <div className="flex gap-3 mt-6">
-            <button
-              type="button"
-              onClick={() => setEditUser(null)}
-              className="btn-secondary flex-1"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={savingUser}
-              className="btn-primary flex-1 flex items-center justify-center gap-2"
-            >
-              {savingUser ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white/50" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                  </svg>
-                  Saving…
-                </>
-              ) : 'Save Changes'}
-            </button>
-          </div>
-        </form>
-      </GlassCard>
-    </div>
-  )}
 export default AdminUsers;
