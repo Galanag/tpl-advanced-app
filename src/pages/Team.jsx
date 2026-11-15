@@ -27,10 +27,18 @@ const Team = () => {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(null);
-
-  const inviteLink = profile?.referral_code ? `${window.location.origin}/auth?ref=${profile.referral_code}` : '';
+  const [referralStatus, setReferralStatus] = useState('');
 
   useEffect(() => { fetchDownline(); }, [profile?.id]);
+
+  // Check referral code status
+  useEffect(() => {
+    if (profile?.referral_code) {
+      setReferralStatus('');
+    } else {
+      setReferralStatus('Generating code... please refresh.');
+    }
+  }, [profile?.referral_code]);
 
   const fetchDownline = async () => {
     if (!profile?.id) return;
@@ -84,7 +92,11 @@ const Team = () => {
           <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
             <div>
               <p className="text-white/40 text-xs">Referral Code</p>
-              <p className="text-white font-bold text-lg tracking-widest">{profile?.referral_code || '------'}</p>
+              {profile?.referral_code ? (
+                <p className="text-white font-bold text-lg tracking-widest">{profile.referral_code}</p>
+              ) : (
+                <p className="text-amber-400 text-sm">{referralStatus}</p>
+              )}
             </div>
             <button onClick={() => copyToClipboard(profile?.referral_code || '')} className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white/80 hover:bg-white/20 transition-all active:scale-95 text-sm">
               {copied ? 'Copied!' : 'Copy'}

@@ -15,6 +15,9 @@ const Deposit = () => {
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settings, setSettings] = useState({});  // ADD THIS
   const [copied, setCopied] = useState(false);
+  const [telebirrName, setTelebirrName] = useState('');
+  const [telebirrNumber, setTelebirrNumber] = useState('');
+  const [telebirrMissing, setTelebirrMissing] = useState(false);
 
   const [form, setForm] = useState({
     amount: '',
@@ -27,23 +30,6 @@ const Deposit = () => {
   const isRegistration = profile?.account_status !== 'active';
   // HARDCODE: Always show 1000 ETB for registration, ignoring DB setting
   const registrationFee = 1000;
-  // Fetch Telebirr details from admin_settings
-  const fetchTelebirrDetails = async () => {
-    try {
-      const { data } = await supabase.from('admin_settings').select('telebirr_name, telebirr_number');
-      if (data && data.length > 0) {
-        const map = {};
-        data.forEach((s) => { map[s.key] = s.value; });
-        return { name: map.telebirr_name || '', number: map.telebirr_number || '' };
-      }
-    } catch (err) {
-      console.error('Failed to fetch Telebirr details:', err);
-    }
-    return { name: '', number: '' };
-  };
-  const telebirr = fetchTelebirrDetails();
-  const telebirrName = telebirr.name;
-  const telebirrNumber = telebirr.number;
 
   // Determine which VIP levels are available for upgrade
   const getAvailableVipLevels = () => {
@@ -65,7 +51,7 @@ const Deposit = () => {
 
   useEffect(() => {
     setError('');
-    setSuccess('');
+    setSuccess();
     const fetchSettings = async () => {
       const { data } = await supabase.from('admin_settings').select('*');
       if (data) {
@@ -74,6 +60,17 @@ const Deposit = () => {
           settingsObj[item.key] = item.value;
         });
         setSettings(settingsObj);
+        // Debug: verify telebirr details are populated
+        console.log('Settings loaded:', settingsObj);
+        // Fetch telebirr details from loaded settings
+        const map = {};
+        data.forEach((s) => { map[s.key] = s.value; });
+        setTelebirrName(map.telebirr_name || '');
+        setTelebirrNumber(map.telebirr_number || '');
+        // If telebirr details are missing, show fallback
+        if (!map.telebirr_name && !map.telebirr_number) {
+          setTelebirrMissing(true);
+        }
       }
       setSettingsLoading(false);
     };
@@ -229,7 +226,7 @@ const Deposit = () => {
             </div>
           ) : (
             <div className="rounded-xl bg-black/20 border border-white/10 px-4 py-3">
-              <p className="text-amber-400/90 text-sm">Payment details are not configured yet. Please contact support.</p>
+              <p className="text-amber-400/90 text-sm">{telebirrMissing ? 'Contact Admin to get payment details.' : 'Payment details are not configured yet.'}</p>
             </div>
           )}
         </GlassCard>

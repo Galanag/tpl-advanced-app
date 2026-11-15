@@ -14,12 +14,12 @@ const WithdrawModal = ({ balance, user, profile, refreshProfile, withdrawalMinim
   const [copied, setCopied] = useState(false);
   let [copyMsg, setCopyMsg] = useState('');
 
-  // Build the referral link from the user's own referral code and the current origin
-  // Build the referral link - with fallback for missing referral_code
+// Build the referral link from the user's own referral code and the current origin
+// Build the referral link - with fallback for missing referral_code
 let referralLink;
 if (!profile?.referral_code) {
   referralLink = null;
-  copyMsg = 'Generating your referral code...';
+  copyMsg = 'Generating code... please refresh.';
 } else {
   referralLink = `${window.location.origin}/auth?ref=${profile.referral_code}`;
   copyMsg = '';

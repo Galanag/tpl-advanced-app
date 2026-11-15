@@ -21,15 +21,9 @@ const AdminSettings = () => {
     { key: 'referral_bonus_percentage', label: 'Referral Bonus Percentage (%)', type: 'number', min: 0, max: 100, step: 0.1 },
     { key: 'basic_daily_limit', label: 'Basic VIP Daily Limit (videos)', type: 'number', min: 0, step: 1 },
     { key: 'basic_reward_amount', label: 'Basic VIP Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
-    { key: 'vip1_daily_limit', label: 'VIP1 Daily Limit (videos)', type: 'number', min: 0, step: 1 },
     { key: 'vip1_reward_amount', label: 'VIP1 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
-    { key: 'vip1_price', label: 'VIP1 Upgrade Price (ETB)', type: 'number', min: 0, step: 1 },
-    { key: 'vip2_daily_limit', label: 'VIP2 Daily Limit (videos)', type: 'number', min: 0, step: 1 },
     { key: 'vip2_reward_amount', label: 'VIP2 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
-    { key: 'vip2_price', label: 'VIP2 Upgrade Price (ETB)', type: 'number', min: 0, step: 1 },
-    { key: 'vip3_daily_limit', label: 'VIP3 Daily Limit (videos)', type: 'number', min: 0, step: 1 },
     { key: 'vip3_reward_amount', label: 'VIP3 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
-    { key: 'vip3_price', label: 'VIP3 Upgrade Price (ETB)', type: 'number', min: 0, step: 1 },
     { key: 'withdrawal_minimum', label: 'Minimum Withdrawal Amount (ETB)', type: 'number', min: 0, step: 0.01 },
     { key: 'referrals_required_to_withdraw', label: 'Referrals Required to Withdraw', type: 'number', min: 0, step: 1 },
     // Telebirr (new payment method for registration)
@@ -182,6 +176,55 @@ const AdminSettings = () => {
               </button>
             </div>
           </form>
+        </div>
+        <div className="space-y-4">
+          <h3 className="text-white/50 text-sm font-semibold">New VIP Rules (DB-driven)</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <GlassCard className="p-4 text-sm">
+              <div className="flex items-start gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500/30 flex items-center justify-center">
+                  <svg className="text-green-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
+                </div>
+                <div>
+                  <p className="font-medium">Basic: 0-4 Referrals (5 videos/day)</p>
+                  <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
+                </div>
+              </div>
+            </GlassCard>
+            <GlassCard className="p-4 text-sm">
+              <div className="flex items-start gap-2">
+                <div className="w-3 h-3 rounded-full bg-amber-500/30 flex items-center justify-center">
+                  <svg className="text-amber-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
+                </div>
+                <div>
+                  <p className="font-medium">VIP 1: 5-9 Referrals (15 videos/day)</p>
+                  <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
+                </div>
+              </div>
+            </GlassCard>
+            <GlassCard className="p-4 text-sm">
+              <div className="flex items-start gap-2">
+                <div className="w-3 h-3 rounded-full bg-emerald-500/30 flex items-center justify-center">
+                  <svg className="text-emerald-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
+                </div>
+                <div>
+                  <p className="font-medium">VIP 2: 10-14 Referrals (30 videos/day)</p>
+                  <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
+                </div>
+              </div>
+            </GlassCard>
+            <GlassCard className="p-4 text-sm">
+              <div className="flex items-start gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500/30 flex items-center justify-center">
+                  <svg className="text-blue-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
+                </div>
+                <div>
+                  <p className="font-medium">VIP 3: 15+ Referrals (50 videos/day)</p>
+                  <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
         </div>
       </div>
     </div>
