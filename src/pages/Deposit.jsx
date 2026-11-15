@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
 import SkeletonLoader from '../components/SkeletonLoader';
-import { Smartphone, Copy, CheckCircle2, ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
+import { Smartphone, Copy, CheckCircle2, ArrowLeft, ShieldCheck, Sparkles, MessageCircle } from 'lucide-react';
 
 const Deposit = () => {
   const { user, profile } = useAuthStore();
