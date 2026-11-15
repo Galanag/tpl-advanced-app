@@ -12,7 +12,6 @@ const Deposit = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [settings, setSettings] = useState({});
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -25,9 +24,25 @@ const Deposit = () => {
   });
 
   const isRegistration = profile?.account_status !== 'active';
-  const registrationFee = parseFloat(settings.registration_fee || 1000);
-  const telebirrName = settings.telebirr_name || '';
-  const telebirrNumber = settings.telebirr_number || '';
+  // HARDCODE: Always show 1000 ETB for registration, ignoring DB setting
+  const registrationFee = 1000;
+  // Fetch Telebirr details from admin_settings
+  const fetchTelebirrDetails = async () => {
+    try {
+      const { data } = await supabase.from('admin_settings').select('telebirr_name, telebirr_number');
+      if (data && data.length > 0) {
+        const map = {};
+        data.forEach((s) => { map[s.key] = s.value; });
+        return { name: map.telebirr_name || '', number: map.telebirr_number || '' };
+      }
+    } catch (err) {
+      console.error('Failed to fetch Telebirr details:', err);
+    }
+    return { name: '', number: '' };
+  };
+  const telebirr = fetchTelebirrDetails();
+  const telebirrName = telebirr.name;
+  const telebirrNumber = telebirr.number;
 
   // Determine which VIP levels are available for upgrade
   const getAvailableVipLevels = () => {

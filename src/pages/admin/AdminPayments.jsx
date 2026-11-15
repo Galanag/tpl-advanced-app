@@ -49,7 +49,7 @@ const AdminPayments = () => {
     }
   };
 
-  const approveDeposit = async (depositId) => {
+const approveDeposit = async (depositId) => {
     setLoading(true);
     try {
       console.log('[AdminPayments] Approving deposit ID:', depositId);
@@ -100,21 +100,7 @@ const AdminPayments = () => {
       }
       console.log('[AdminPayments] Profile:', profile);
 
-      // 3. Update user's total_deposited
-      const newTotalDeposited = (parseFloat(profile.total_deposited || 0) + parseFloat(deposit.amount)).toFixed(2);
-      console.log('[AdminPayments] Updating total_deposited to:', newTotalDeposited);
-      const { error: totalDepositError } = await supabase
-        .from('profiles')
-        .update({ total_deposited: newTotalDeposited })
-        .eq('id', profile.id);
-
-      if (totalDepositError) {
-        console.error('[AdminPayments] Error updating total_deposited:', totalDepositError);
-        throw totalDepositError;
-      }
-      console.log('[AdminPayments] Total deposited updated');
-
-      // 4. Update account status to active (if not already)
+      // 3. Update account status to active (if not already)
       if (profile.account_status !== 'active') {
         console.log('[AdminPayments] Updating account status to active');
         const { error: accountStatusError } = await supabase
@@ -129,103 +115,21 @@ const AdminPayments = () => {
         console.log('[AdminPayments] Account status updated to active');
       }
 
-      // 5. Determine the new VIP level and daily quota
-      const totalDepositedFloat = parseFloat(newTotalDeposited);
-      let newVipLevel = 'Basic';
-      let newDailyQuota = parseInt(settings.basic_daily_limit || 5);
-
-      if (deposit.target_vip) {
-        // Explicit VIP upgrade requested by the user — honor the target tier
-        const tierRaw = String(deposit.target_vip).trim();
-        const tierKey = tierRaw.toLowerCase();
-        const tier = tierKey === 'basic' ? 'Basic' : tierRaw.toUpperCase(); // VIP1 / VIP2 / VIP3
-        newVipLevel = tier;
-        newDailyQuota = parseInt(settings[`${tierKey}_daily_limit`] || 10);
-        console.log('[AdminPayments] Applying requested VIP upgrade to:', tier, 'quota:', newDailyQuota);
-      } else {
-        // Fallback: derive tier from cumulative deposits using VIP prices
-        const vip1Threshold = parseFloat(settings.vip1_price || settings.vip1_min_deposit || 500);
-        const vip2Threshold = parseFloat(settings.vip2_price || settings.vip2_min_deposit || 1500);
-        const vip3Threshold = parseFloat(settings.vip3_price || settings.vip3_min_deposit || 5000);
-
-        if (totalDepositedFloat >= vip3Threshold) {
-          newVipLevel = 'VIP3';
-          newDailyQuota = parseInt(settings.vip3_daily_limit || 20);
-        } else if (totalDepositedFloat >= vip2Threshold) {
-          newVipLevel = 'VIP2';
-          newDailyQuota = parseInt(settings.vip2_daily_limit || 15);
-        } else if (totalDepositedFloat >= vip1Threshold) {
-          newVipLevel = 'VIP1';
-          newDailyQuota = parseInt(settings.vip1_daily_limit || 10);
-        } else {
-          newVipLevel = 'Basic';
-          newDailyQuota = parseInt(settings.basic_daily_limit || 5);
-        }
-      }
-
-      // 6. Persist the new VIP level and daily quota.
-      //    The per-video reward is derived from the VIP tier in admin_settings at claim time,
-      //    so updating vip_level automatically updates the effective reward_amount.
-      console.log('[AdminPayments] Updating VIP level to:', newVipLevel, 'and daily quota to:', newDailyQuota);
-      const { error: vipLevelError } = await supabase
-        .from('profiles')
-        .update({ vip_level: newVipLevel, daily_quota_limit: newDailyQuota })
-        .eq('id', profile.id);
-
-      if (vipLevelError) {
-        console.error('[AdminPayments] Error updating VIP level and quota:', vipLevelError);
-        throw vipLevelError;
-      }
-      console.log('[AdminPayments] VIP level and quota updated');
-
-      // 7. If the user was referred, activate the referral and credit the referrer
-      //    only once (when transitioning from 'pending_payment' to 'active'), so that
-      //    repeated deposit approvals don't inflate successful_referrals.
+      // 4. Increment the referrer's successful_referrals by 1
+      //    The database trigger will automatically handle the VIP upgrade
+      //    based on the new referral count.
       if (profile.referred_by) {
         console.log('[AdminPayments] User was referred by:', profile.referred_by);
+        const { error: referrerError } = await supabase.rpc('increment_successful_referrals', { uid: profile.referred_by });
 
-        const { data: referralRow, error: referralFetchError } = await supabase
-          .from('referrals')
-          .select('id, status')
-          .eq('referred_id', profile.id)
-          .maybeSingle();
-
-        if (referralFetchError) {
-          console.error('[AdminPayments] Error fetching referral:', referralFetchError);
-          throw referralFetchError;
+        if (referrerError) {
+          console.error('[AdminPayments] Error updating referrer successful_referrals:', referrerError);
+          throw referrerError;
         }
-
-        if (!referralRow) {
-          // No referral record exists despite referred_by being set on the profile.
-          // Do not credit the referrer for a referral that cannot be resolved.
-          console.warn('[AdminPayments] No referral record found for referred user; skipping referral credit.');
-        } else if (referralRow.status !== 'active') {
-          // Update referral status to active
-          const { error: referralStatusError } = await supabase
-            .from('referrals')
-            .update({ status: 'active' })
-            .eq('id', referralRow.id);
-
-          if (referralStatusError) {
-            console.error('[AdminPayments] Error updating referral status:', referralStatusError);
-            throw referralStatusError;
-          }
-          console.log('[AdminPayments] Referral status updated to active');
-
-          // Atomically increment the referrer's successful_referrals via RPC
-          const { error: referrerError } = await supabase.rpc('increment_successful_referrals', { uid: profile.referred_by });
-
-          if (referrerError) {
-            console.error('[AdminPayments] Error updating referrer successful_referrals:', referrerError);
-            throw referrerError;
-          }
-          console.log('[AdminPayments] Referrer successful_referrals incremented');
-        } else {
-          console.log('[AdminPayments] Referral already active; skipping successful_referrals increment');
-        }
+        console.log('[AdminPayments] Referrer successful_referrals incremented - VIP upgrade handled by trigger');
       }
 
-      // 8. Refresh the list
+      // 5. Refresh the list
       console.log('[AdminPayments] Refreshing pending deposits list');
       await fetchPendingDeposits();
 
