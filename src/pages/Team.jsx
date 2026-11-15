@@ -28,6 +28,9 @@ const Team = () => {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [referralStatus, setReferralStatus] = useState('');
+  const inviteLink = profile?.referral_code
+    ? `${window.location.origin}/auth?ref=${profile.referral_code}`
+    : 'Generating link...';
 
   useEffect(() => { fetchDownline(); }, [profile?.id]);
 

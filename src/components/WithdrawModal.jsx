@@ -55,8 +55,14 @@ const handleWithdraw = async (e) => {
   };
 
   const copyReferral = async () => {
+    if (!profile?.referral_code) {
+      setCopyMsg('Referral code still generating. Please refresh the page.');
+      setTimeout(() => setCopyMsg(''), 2000);
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(referralLink);
+      const link = `${window.location.origin}/auth?ref=${profile.referral_code}`;
+      await navigator.clipboard.writeText(link);
       setCopied(true);
       setCopyMsg('Link copied!');
       setTimeout(() => { setCopied(false); setCopyMsg(''); }, 1800);

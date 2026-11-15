@@ -114,8 +114,9 @@ const Deposit = () => {
 
     if (!user) { setError('User not authenticated'); return; }
     if (!isRegistration && !form.targetVip) { setError('Please select a target VIP level'); return; }
-    if (!form.paymentReference.trim()) { setError('Transaction reference is required'); return; }
-    if (!form.proofImage) { setError('Please attach a screenshot of your payment'); return; }
+    const hasReference = form.paymentReference && form.paymentReference.trim() !== '';
+    const hasProof = form.proofImage !== null;
+    if (!hasReference && !hasProof) { setError("Please provide either a Transaction Reference OR upload a screenshot."); return; }
 
     const amount = isRegistration ? registrationFee : getUpgradeCost(form.targetVip);
     if (!amount || amount <= 0) { setError('Unable to determine a valid payment amount'); return; }
@@ -300,8 +301,10 @@ const Deposit = () => {
                 </div>
               </div>
 
+              <p className="text-white/50 text-xs mt-2">Please provide at least one proof of payment (Reference or Screenshot).</p>
+
               <div>
-                <label className="text-white/50 text-sm block mb-1.5">Transaction Reference (Telebirr ID) *</label>
+                <label className="text-white/50 text-sm block mb-1.5">Transaction Reference (Optional)</label>
                 <input
                   type="text"
                   name="paymentReference"
@@ -310,10 +313,11 @@ const Deposit = () => {
                   className="glass-input"
                   placeholder="e.g. TB1234567890"
                 />
+                <p className="text-white/40 text-xs mt-1">Provide if you have a transaction ID</p>
               </div>
 
               <div>
-                <label className="text-white/50 text-sm block mb-1.5">Payment Screenshot *</label>
+                <label className="text-white/50 text-sm block mb-1.5">Payment Screenshot (Optional)</label>
                 <input
                   type="file"
                   name="proofImage"
@@ -322,7 +326,7 @@ const Deposit = () => {
                   accept="image/jpeg,image/png,image/webp,image/heic"
                   required
                 />
-                <p className="text-white/40 text-xs mt-1">Accepted: JPG, PNG, WEBP (max 5MB)</p>
+                <p className="text-white/40 text-xs mt-1">Provide if you have a screenshot. Either this OR a reference is sufficient.</p>
               </div>
 
               {isRegistration && (
