@@ -27,21 +27,17 @@ const Team = () => {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(null);
-  const [referralStatus, setReferralStatus] = useState('');
+  
+  // Bulletproof inviteLink definition
   const inviteLink = profile?.referral_code
     ? `${window.location.origin}/auth?ref=${profile.referral_code}`
-    : 'Generating link...';
+    : '';
 
-  useEffect(() => { fetchDownline(); }, [profile?.id]);
-
-  // Check referral code status
-  useEffect(() => {
-    if (profile?.referral_code) {
-      setReferralStatus('');
-    } else {
-      setReferralStatus('Generating code... please refresh.');
+  useEffect(() => { 
+    if (profile?.id) {
+      fetchDownline(); 
     }
-  }, [profile?.referral_code]);
+  }, [profile?.id]);
 
   const fetchDownline = async () => {
     if (!profile?.id) return;
@@ -59,6 +55,10 @@ const Team = () => {
   const pendingMembers = downline.filter((m) => m.account_status !== 'active');
 
   const copyToClipboard = async (text) => {
+    if (!text) {
+      alert("Your referral code is still generating. Please refresh the page.");
+      return;
+    }
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -87,8 +87,18 @@ const Team = () => {
         </div>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <input type="text" readOnly value={inviteLink} className="glass-input flex-1 text-xs" onClick={(e) => e.target.select()} />
-            <button onClick={() => copyToClipboard(inviteLink)} className="shrink-0 px-4 py-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-all active:scale-95">
+            <input 
+              type="text" 
+              readOnly 
+              value={inviteLink || 'Generating your link...'} 
+              className="glass-input flex-1 text-xs" 
+              onClick={(e) => e.target.select()} 
+            />
+            <button 
+              onClick={() => copyToClipboard(inviteLink)} 
+              disabled={!inviteLink}
+              className={`shrink-0 px-4 py-3 rounded-xl border transition-all active:scale-95 ${inviteLink ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/25' : 'bg-white/5 border-white/10 text-white/20 cursor-not-allowed'}`}
+            >
               {copied ? <Check size={18} /> : <Copy size={18} />}
             </button>
           </div>
@@ -98,10 +108,14 @@ const Team = () => {
               {profile?.referral_code ? (
                 <p className="text-white font-bold text-lg tracking-widest">{profile.referral_code}</p>
               ) : (
-                <p className="text-amber-400 text-sm">{referralStatus}</p>
+                <p className="text-amber-400 text-sm">Generating code... please refresh.</p>
               )}
             </div>
-            <button onClick={() => copyToClipboard(profile?.referral_code || '')} className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white/80 hover:bg-white/20 transition-all active:scale-95 text-sm">
+            <button 
+              onClick={() => copyToClipboard(profile?.referral_code)} 
+              disabled={!profile?.referral_code}
+              className={`px-4 py-2 rounded-xl border text-sm transition-all active:scale-95 ${profile?.referral_code ? 'bg-white/10 border-white/20 text-white/80 hover:bg-white/20' : 'bg-white/5 border-white/5 text-white/20 cursor-not-allowed'}`}
+            >
               {copied ? 'Copied!' : 'Copy'}
             </button>
           </div>

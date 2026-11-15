@@ -26,41 +26,42 @@ const Wallet = () => {
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [message, setMessage] = useState(null);
   
-  // Withdrawal limits (will be passed to WithdrawModal)
-  const [withdrawalMinimum, setWithdrawalMinimum] = useState(100); // default
-  const [referralsRequired, setReferralsRequired] = useState(5); // default
+  // Withdrawal limits
+  const [withdrawalMinimum, setWithdrawalMinimum] = useState(100);
+  const [referralsRequired, setReferralsRequired] = useState(5);
   const [settingsLoading, setSettingsLoading] = useState(true);
   
-  const balance = parseFloat(profile?.balance) || 0;
-  const successfulReferrals = parseInt(profile?.successful_referrals || 0);
   const [freshProfile, setFreshProfile] = useState(profile);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fetch fresh profile data on mount and when profile changes
+  // Fetch fresh profile data on mount (CRITICAL: Includes referral_code now)
   useEffect(() => {
     if (!user?.id) return;
     const fetchFreshProfile = async () => {
+      setIsRefreshing(true);
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('successful_referrals, balance, payment_account_number, vip_level, account_status')
+          .select('successful_referrals, balance, payment_account_number, vip_level, account_status, referral_code')
           .eq('id', user.id)
           .single();
         if (data && !error) {
           setFreshProfile(data);
+          setAvailableBalance(parseFloat(data.balance) || 0);
         }
       } catch (err) {
         console.error('Failed to fetch fresh profile:', err);
+      } finally {
+        setIsRefreshing(false);
       }
     };
     fetchFreshProfile();
-  }, [user?.id]);
+  }, [user?.id, showWithdraw]); // Refetch when modal opens
 
-  // Use freshProfile for withdrawal checks to avoid stale state
   const freshSuccessfulReferrals = parseInt(freshProfile?.successful_referrals || 0);
   const freshBalance = parseFloat(freshProfile?.balance) || 0;
   const freshPaymentMethod = freshProfile?.payment_account_number || profile?.payment_account_number;
   
-  // Fetch financial metrics and transaction history
   useEffect(() => {
     fetchFinancialMetrics();
     fetchTransactions();
@@ -73,7 +74,7 @@ const Wallet = () => {
       if (error) throw error;
       const map = {};
       (data || []).forEach((s) => { map[s.key] = s.value; });
-      setWithdrawalMinimum(parseInt(map.withdrawal_minimum || 100, 10));
+      setWithdrawalMinimum(parseInt(map.withdrawal_minimum || 3000, 10));
       setReferralsRequired(parseInt(map.referrals_required_to_withdraw || 5, 10));
     } catch (err) {
       console.error('Error fetching settings:', err);
@@ -86,10 +87,8 @@ const Wallet = () => {
     if (!user?.id) return;
     
     try {
-      // Available balance (from profiles)
-      setAvailableBalance(balance);
+      setAvailableBalance(freshBalance);
       
-      // Total earnings (commissions)
       const { data: commissionsData, error: commissionsError } = await supabase
         .from('commissions')
         .select('amount')
@@ -99,7 +98,6 @@ const Wallet = () => {
       const totalEarn = (commissionsData || []).reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
       setTotalEarnings(totalEarn);
       
-      // Total approved deposits
       const { data: depositsData, error: depositsError } = await supabase
         .from('deposits')
         .select('amount')
@@ -110,7 +108,6 @@ const Wallet = () => {
       const totalDeposits = (depositsData || []).reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
       setTotalApprovedDeposits(totalDeposits);
       
-      // Pending withdrawals amount
       const { data: pendingWithdrawalsData, error: pendingWithdrawalsError } = await supabase
         .from('withdrawals')
         .select('amount')
@@ -121,7 +118,6 @@ const Wallet = () => {
       const totalPending = (pendingWithdrawalsData || []).reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
       setPendingWithdrawalsAmount(totalPending);
       
-      // Total withdrawn (approved or completed)
       const { data: withdrawnData, error: withdrawnError } = await supabase
         .from('withdrawals')
         .select('amount')
@@ -160,8 +156,7 @@ const Wallet = () => {
     ? <TrendingUp size={16} className="text-emerald-400" />
     : <ArrowUpRight size={16} className="text-amber-400" />;
   
-  // Simple check: balance and payment method only (referral check moved to modal)
-  const canOpenWithdraw = availableBalance >= withdrawalMinimum && profile?.payment_account_number;
+  const canOpenWithdraw = availableBalance >= withdrawalMinimum && freshPaymentMethod;
   
   return (
     <div className="fade-in-up space-y-6">
@@ -223,7 +218,7 @@ const Wallet = () => {
               {availableBalance.toFixed(2)} <span className="text-lg text-amber-400">ETB</span>
             </h3>
             <p className="text-white/40 text-xs mt-2">Minimum withdrawal: {withdrawalMinimum} ETB</p>
-            {!profile?.payment_account_number && (
+            {!freshPaymentMethod && (
               <p className="text-white/40 text-xs mt-1 text-red-400">Please add payment method in Profile</p>
             )}
           </div>
@@ -238,7 +233,7 @@ const Wallet = () => {
             </button>
             <button
               onClick={() => {
-                if (!profile?.payment_account_number) {
+                if (!freshPaymentMethod) {
                   setMessage({ type: 'error', text: 'Please add your payment method in your Profile before withdrawing.' });
                 } else if (availableBalance < withdrawalMinimum) {
                   setMessage({ type: 'error', text: `Your available balance is below the minimum withdrawal of ${withdrawalMinimum} ETB.` });
@@ -263,11 +258,11 @@ const Wallet = () => {
         }`}>{message.text}</div>
       )}
       
-{showWithdraw && (
+      {showWithdraw && (
         <WithdrawModal
           balance={freshBalance}
           user={user}
-          profile={freshProfile}
+          profile={freshProfile} // Passing the fresh profile with referral_code
           refreshProfile={refreshProfile}
           withdrawalMinimum={withdrawalMinimum}
           referralsRequired={referralsRequired}
@@ -280,33 +275,33 @@ const Wallet = () => {
       {/* Transaction History */}
       <div>
         <h3 className="text-white font-semibold mb-3">Transaction History</h3>
-{loading ? (
-  <div className="space-y-3">
-    {[...Array(5)].map((_, i) => <SkeletonLoader key={i} className="h-16 w-full rounded-xl" />)}
-  </div>
-) : transactions.length === 0 ? (
-  <GlassCard className="text-center py-10">
-    <Gift size={40} className="text-white/20 mx-auto mb-3" />
-    <p className="text-white/40 text-sm">No transactions yet. Start watching videos to earn!</p>
-  </GlassCard>
-) : (
-  <div className="space-y-2">
-    {transactions.map((tx) => (
-      <GlassCard key={tx.id} className="flex items-center gap-3 py-3 px-4">
-        <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-          {iconFor(tx.type)}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white/90 text-sm font-medium truncate">{tx.label}</p>
-          <p className="text-white/40 text-xs">{tx.date ? new Date(tx.date).toLocaleString() : ''}</p>
-        </div>
-        <span className={`font-semibold text-sm shrink-0 ${tx.amount >= 0 ? 'text-emerald-400' : 'text-white/60'}`}>
-          {tx.amount >= 0 ? '+' : ''}{tx.amount.toFixed(2)} ETB
-        </span>
-      </GlassCard>
-    ))}
-  </div>
-)}
+        {loading ? (
+          <div className="space-y-3">
+            {[...Array(5)].map((_, i) => <SkeletonLoader key={i} className="h-16 w-full rounded-xl" />)}
+          </div>
+        ) : transactions.length === 0 ? (
+          <GlassCard className="text-center py-10">
+            <Gift size={40} className="text-white/20 mx-auto mb-3" />
+            <p className="text-white/40 text-sm">No transactions yet. Start watching videos to earn!</p>
+          </GlassCard>
+        ) : (
+          <div className="space-y-2">
+            {transactions.map((tx) => (
+              <GlassCard key={tx.id} className="flex items-center gap-3 py-3 px-4">
+                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                  {iconFor(tx.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white/90 text-sm font-medium truncate">{tx.label}</p>
+                  <p className="text-white/40 text-xs">{tx.date ? new Date(tx.date).toLocaleString() : ''}</p>
+                </div>
+                <span className={`font-semibold text-sm shrink-0 ${tx.amount >= 0 ? 'text-emerald-400' : 'text-white/60'}`}>
+                  {tx.amount >= 0 ? '+' : ''}{tx.amount.toFixed(2)} ETB
+                </span>
+              </GlassCard>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
