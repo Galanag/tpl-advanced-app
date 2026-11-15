@@ -14,5 +14,5 @@ Admin Panel: Accessible at /admin (requires is_admin = true in profiles table).
 # supabase link --project-ref mnlijtkyqwyujimwootg
 
 git add .
-git commit -m "Solving empty screen"
+git commit -m "Fix JSX placement for Edit User modal"
 git push origin main
