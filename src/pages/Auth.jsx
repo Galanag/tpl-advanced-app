@@ -179,11 +179,22 @@ const Auth = () => {
             </button>
           </form>
 
-          {tab === 'register' && (
+{tab === 'register' && (
             <p className="text-center text-white/40 text-xs mt-4">
               By signing up you agree to our Terms of Service.
             </p>
           )}
+          <div className="text-center mt-3">
+            <a
+              href="https://t.me/Hidase_Investment_Admin"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sky-400 hover:text-sky-300 transition-colors"
+            >
+              <MessageCircle size={16} className="text-sky-400" />
+              Need help? Contact Support on Telegram
+            </a>
+          </div>
         </div>
       </div>
     </div>

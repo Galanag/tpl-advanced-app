@@ -44,6 +44,16 @@ const Layout = () => {
         </main>
       </div>
 
+      /* Floating Support Button */
+      <a
+        href="https://t.me/Hidase_Investment_Admin"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-16 right-4 z-50 flex items-center justify-center w-12 h-12 rounded-full bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 hover:text-blue-500 transition-all ease-out outline-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      >
+        <MessageCircle size={20} className="text-blue-500" />
+      </a>
+
       {/* Bottom nav - mobile only (<768px) */}
       <BottomNav />
     </div>

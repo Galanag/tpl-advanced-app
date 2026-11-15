@@ -5,20 +5,21 @@ import { useAuthStore } from '../store/authStore';
 import GlassCard from '../components/GlassCard';
 import SkeletonLoader from '../components/SkeletonLoader';
 
+// Updated to match the new 5-person interval VIP rule
 const LEVELS = [
-  { level: 'P1', name: 'Bronze', required: 5, rate: '10%' },
-  { level: 'P2', name: 'Silver', required: 9, rate: '3%' },
-  { level: 'P3', name: 'Gold', required: 15, rate: '2%' },
-  { level: 'P4', name: 'Platinum', required: 25, rate: '1%' },
-  { level: 'P5', name: 'Diamond', required: 40, rate: '1%' },
-  { level: 'P6', name: 'Ruby', required: 60, rate: '0.5%' },
-  { level: 'P7', name: 'Emerald', required: 90, rate: '0.5%' },
-  { level: 'P8', name: 'Sapphire', required: 130, rate: '0.25%' },
-  { level: 'P9', name: 'Pearl', required: 180, rate: '0.25%' },
-  { level: 'P10', name: 'Obsidian', required: 250, rate: '0.1%' },
-  { level: 'P11', name: 'Titanium', required: 350, rate: '0.1%' },
-  { level: 'P12', name: 'Master', required: 500, rate: '0.05%' },
-  { level: 'P13', name: 'Grand Master', required: 750, rate: '0.05%' },
+  { level: 'P1', name: 'VIP 1', required: 5, rate: '10%' },
+  { level: 'P2', name: 'VIP 2', required: 10, rate: '3%' },
+  { level: 'P3', name: 'VIP 3', required: 15, rate: '2%' },
+  { level: 'P4', name: 'VIP 4', required: 20, rate: '1%' },
+  { level: 'P5', name: 'VIP 5', required: 25, rate: '1%' },
+  { level: 'P6', name: 'VIP 6', required: 30, rate: '0.5%' },
+  { level: 'P7', name: 'VIP 7', required: 35, rate: '0.5%' },
+  { level: 'P8', name: 'VIP 8', required: 40, rate: '0.25%' },
+  { level: 'P9', name: 'VIP 9', required: 45, rate: '0.25%' },
+  { level: 'P10', name: 'VIP 10', required: 50, rate: '0.1%' },
+  { level: 'P11', name: 'VIP 11', required: 55, rate: '0.1%' },
+  { level: 'P12', name: 'VIP 12', required: 60, rate: '0.05%' },
+  { level: 'P13', name: 'VIP 13', required: 65, rate: '0.05%' },
 ];
 
 const Team = () => {
@@ -28,7 +29,7 @@ const Team = () => {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(null);
   
-  // Bulletproof inviteLink definition
+  // Safely construct invite link
   const inviteLink = profile?.referral_code
     ? `${window.location.origin}/auth?ref=${profile.referral_code}`
     : '';
@@ -44,13 +45,14 @@ const Team = () => {
     setLoading(true);
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, phone, level, team_size, account_status, created_at')
+      .select('id, full_name, phone, level, vip_level, team_size, account_status, created_at')
       .eq('referred_by', profile.id)
       .order('created_at', { ascending: false });
     setDownline(data || []);
     setLoading(false);
   };
 
+  // Only count users who have been approved (paid the fee)
   const activeMembers = downline.filter((m) => m.account_status === 'active');
   const pendingMembers = downline.filter((m) => m.account_status !== 'active');
 
@@ -135,18 +137,21 @@ const Team = () => {
         </GlassCard>
         <GlassCard className="text-center">
           <Award size={20} className="text-amber-400 mx-auto mb-1.5" />
-          <p className="text-lg font-bold text-white">{profile?.level || 'Intern'}</p>
-          <p className="text-white/50 text-xs">Rank</p>
+          {/* Displays the actual VIP level from the DB trigger */}
+          <p className="text-lg font-bold text-white">{profile?.vip_level || 'Basic'}</p>
+          <p className="text-white/50 text-xs">VIP Level</p>
         </GlassCard>
       </div>
 
       <div>
-        <h3 className="text-white font-semibold mb-3">Rank Progression</h3>
+        <h3 className="text-white font-semibold mb-3">VIP Progression</h3>
         <div className="space-y-2">
           {LEVELS.map((lvl) => {
-            const teamSize = profile?.team_size || 0;
-            const unlocked = teamSize >= lvl.required;
-            const progress = Math.min((teamSize / lvl.required) * 100, 100);
+            // Use actual active members count for progression
+            const currentCount = activeMembers.length;
+            const unlocked = currentCount >= lvl.required;
+            const progress = Math.min((currentCount / lvl.required) * 100, 100);
+            
             return (
               <div key={lvl.level} className={`glass-card p-4 ${unlocked ? 'border-amber-500/30' : ''}`}>
                 <div className="flex items-center justify-between">
@@ -156,7 +161,7 @@ const Team = () => {
                     </div>
                     <div>
                       <p className="text-white/90 text-sm font-semibold">{lvl.name}</p>
-                      <p className="text-white/40 text-xs">{lvl.required} members · {lvl.rate} commission</p>
+                      <p className="text-white/40 text-xs">{lvl.required} active referrals required</p>
                     </div>
                   </div>
                   {unlocked && <Check size={18} className="text-emerald-400" />}
@@ -209,8 +214,8 @@ const Team = () => {
                       <p className="text-white/80 font-medium">{member.team_size || 0}</p>
                     </div>
                     <div>
-                      <p className="text-white/40">Rank</p>
-                      <p className="text-white/80 font-medium">{member.level || 'Intern'}</p>
+                      <p className="text-white/40">VIP Level</p>
+                      <p className="text-white/80 font-medium">{member.vip_level || 'Basic'}</p>
                     </div>
                     <div>
                       <p className="text-white/40">Joined</p>
@@ -263,8 +268,8 @@ const Team = () => {
                       <p className="text-white/80 font-medium">{member.team_size || 0}</p>
                     </div>
                     <div>
-                      <p className="text-white/40">Rank</p>
-                      <p className="text-white/80 font-medium">{member.level || 'Intern'}</p>
+                      <p className="text-white/40">VIP Level</p>
+                      <p className="text-white/80 font-medium">{member.vip_level || 'Basic'}</p>
                     </div>
                     <div>
                       <p className="text-white/40">Joined</p>

@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Loader2, X, AlertTriangle, Copy, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 import GlassCard from './GlassCard';
 
 const WithdrawModal = ({ balance, user, profile, refreshProfile, withdrawalMinimum, referralsRequired, successfulReferrals, onClose, onSuccess }) => {
+  const navigate = useNavigate();
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -54,10 +56,10 @@ const handleWithdraw = async (e) => {
     }
   };
 
-  const copyReferral = async () => {
+const copyReferral = async () => {
     if (!profile?.referral_code) {
-      setCopyMsg('Referral code still generating. Please refresh the page.');
-      setTimeout(() => setCopyMsg(''), 2000);
+      alert("Your referral code is still generating. Redirecting you to the Team page where you can get it.");
+      navigate('/team');
       return;
     }
     try {

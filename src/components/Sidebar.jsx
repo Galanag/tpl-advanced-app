@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home, PlayCircle, Users, Wallet, User, LogOut, Settings } from 'lucide-react';
+import { Home, PlayCircle, Users, Wallet, User, LogOut, Settings, MessageCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 const navItems = [
@@ -36,7 +36,7 @@ const Sidebar = () => {
       <div className="text-center mb-4">
         <img src="/logo.png" alt="HIDASE Logo" className="w-32 h-auto mx-auto mb-2" />
       </div>
-      <nav className="flex-1 space-y-1">
+<nav className="flex-1 space-y-1">
         {navItems.map(({ path, label, icon: Icon }) => (
           <NavLink
             key={path}
@@ -48,12 +48,22 @@ const Sidebar = () => {
                   ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
                   : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
-            >
-              <Icon size={20} />
-              <span className="font-medium">{label}</span>
-            </NavLink>
+          >
+            <Icon size={20} />
+            <span className="font-medium">{label}</span>
+          </NavLink>
         ))}
       </nav>
+
+      <a
+        href="https://t.me/Hidase_Investment_Admin"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-3 px-4 py-3 rounded-xl text-sky-400 hover:text-sky-300 transition-all active:scale-95"
+      >
+        <MessageCircle size={20} className="text-sky-400" />
+        <span className="font-medium">Support</span>
+      </a>
 
       <button
         onClick={signOut}

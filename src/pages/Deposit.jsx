@@ -238,6 +238,18 @@ const Deposit = () => {
           </div>
         )}
 
+        <div className="flex items-center justify-center mb-4">
+          <a
+            href="https://t.me/Hidase_Investment_Admin"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-5 py-2 rounded-lg bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:text-amber-400 transition-colors"
+          >
+            <MessageCircle size={18} className="text-amber-400" />
+            Having payment issues? Contact Support on Telegram
+          </a>
+        </div>
+
         {success && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 mb-4">
             <p className="text-emerald-400 text-sm">{success}</p>

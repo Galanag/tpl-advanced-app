@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { User } from 'lucide-react';
+import { User, MessageCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 const Header = () => {
@@ -38,6 +38,14 @@ const Header = () => {
           >
             <User size={16} className="text-amber-400" />
           </Link>
+          <a
+            href="https://t.me/Hidase_Investment_Admin"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-9 h-9 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center hover:bg-blue-500/30 transition-colors active:scale-95"
+          >
+            <MessageCircle size={16} className="text-blue-400" />
+          </a>
         </div>
       </div>
     </header>
