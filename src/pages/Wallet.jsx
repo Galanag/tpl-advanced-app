@@ -28,7 +28,6 @@ const Wallet = () => {
   
   // Withdrawal limits
   const [withdrawalMinimum, setWithdrawalMinimum] = useState(3000);
-  const [referralsRequired, setReferralsRequired] = useState(5);
   const [settingsLoading, setSettingsLoading] = useState(true);
   
   const [freshProfile, setFreshProfile] = useState(profile);
@@ -83,6 +82,26 @@ const Wallet = () => {
 
   const freshBalance = parseFloat(freshProfile?.balance) || 0;
   const freshPaymentMethod = freshProfile?.payment_account_number || profile?.payment_account_number;
+
+  // Calculate referralsRequired based on VIP level
+  const getReferralsRequired = (vipLevel) => {
+    switch (vipLevel) {
+      case 'Basic':
+        return 5;
+      case 'VIP1':
+        return 10;
+      case 'VIP2':
+        return 15;
+      case 'VIP3':
+        return 20;
+      case 'VIP4':
+        return 25;
+      default:
+        return 5;
+    }
+  };
+
+  const requiredReferrals = getReferralsRequired(freshProfile?.vip_level || 'Basic');
   
   useEffect(() => {
     fetchFinancialMetrics();
@@ -97,7 +116,6 @@ const Wallet = () => {
       const map = {};
       (data || []).forEach((s) => { map[s.key] = s.value; });
       setWithdrawalMinimum(parseInt(map.withdrawal_minimum || 3000, 10));
-      setReferralsRequired(parseInt(map.referrals_required_to_withdraw || 5, 10));
     } catch (err) {
       console.error('Error fetching settings:', err);
     } finally {
@@ -287,7 +305,7 @@ const Wallet = () => {
           profile={freshProfile} // Passing the fresh profile with referral_code
           refreshProfile={refreshProfile}
           withdrawalMinimum={withdrawalMinimum}
-          referralsRequired={referralsRequired}
+          requiredReferrals={requiredReferrals}
           successfulReferrals={activeReferralsCount} // PASSING THE EXACT COUNT FROM DB
           onClose={() => setShowWithdraw(false)}
           onSuccess={(text) => { setMessage({ type: 'success', text }); setShowWithdraw(false); fetchFinancialMetrics(); fetchTransactions(); }}

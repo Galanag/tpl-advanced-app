@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import GlassCard from './GlassCard';
 
-const WithdrawModal = ({ balance, user, profile, refreshProfile, withdrawalMinimum, referralsRequired, successfulReferrals, onClose, onSuccess }) => {
+const WithdrawModal = ({ balance, user, profile, refreshProfile, withdrawalMinimum, requiredReferrals, successfulReferrals, onClose, onSuccess }) => {
   const navigate = useNavigate();
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState('');
@@ -37,7 +37,7 @@ const handleWithdraw = async (e) => {
     if (amt > balance) return setError('Insufficient balance');
 
     // --- Referral gate check (moved here from the Wallet page) ---
-    if (successfulReferrals < referralsRequired) {
+    if (successfulReferrals < requiredReferrals) {
       setShowReferralGate(true);
       return;
     }
@@ -120,7 +120,7 @@ const copyReferral = async () => {
             </div>
             <h4 className="text-white font-bold text-lg mb-2">Withdrawal Locked</h4>
             <p className="text-white/60 text-sm mb-5">
-              To withdraw your {amount} ETB, you must invite {referralsRequired} friends who have paid the registration fee. You currently have {successfulReferrals} active referrals.
+              To withdraw your {amount} ETB, you must invite {requiredReferrals} friends who have paid the registration fee. You currently have {successfulReferrals} active referrals.
             </p>
             <div className="flex gap-3">
               <button type="button" onClick={() => setShowReferralGate(false)} className="btn-secondary flex-1">Close</button>

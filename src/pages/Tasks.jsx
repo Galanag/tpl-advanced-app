@@ -58,6 +58,18 @@ const Tasks = () => {
         if (profileData) {
           setUserVipLevel(profileData.vip_level || 'Basic');
           setQuotaLimit(profileData.daily_quota_limit || 10);
+
+  // Fallback: calculate quota based on vip_level if profile data is missing
+  const vipFallbackQuota = {
+    'Basic': 5,
+    'VIP1': 10,
+    'VIP2': 15,
+    'VIP3': 20,
+    'VIP4': 25,
+  }[profileData.vip_level] || 5;
+  if (profileData.daily_quota_limit <= 0) {
+    setQuotaLimit(vipFallbackQuota);
+  }
           setWatchedToday(profileData.daily_videos_watched || 0);
           setAccountActive(profileData.account_status === 'active');
 

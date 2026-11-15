@@ -1,0 +1,63 @@
+-- =====================================================
+-- 7. VIP LEVEL TRIGGER
+-- =====================================================
+-- Triggers VIP level assignment based on successful_referrals count
+-- New business logic: +5 referrals and +5 daily quota per VIP level
+drop trigger if exists trg_profiles_vip_level on public.profiles;
+create trigger trg_profiles_vip_level
+  after update on public.profiles
+  for each row
+  execute function public.update_vip_level();
+
+-- =====================================================
+-- Function: public.update_vip_level()
+-- Sets vip_level and daily_quota_limit based on successful_referrals
+-- Referral tiers: Basic(0-4), VIP1(5-9), VIP2(10-14), VIP3(15-19), VIP4(20+)
+-- Each level adds +5 to both referral requirement and daily video quota
+-- =====================================================
+drop function if exists public.update_vip_level() cascade;
+create or replace function public.update_vip_level()
+returns trigger
+language plpgsql
+as $$
+declare
+  vip_name text;
+  quota_limit int;
+begin
+  -- Determine VIP level and daily quota based on successful_referrals
+  -- Tiers: 0-4=Basic, 5-9=VIP1, 10-14=VIP2, 15-19=VIP3, 20+=VIP4
+  -- Each level adds +5 referrals and +5 daily quota
+  if new.successful_referrals < 5 then
+    vip_name := 'Basic';
+    quota_limit := 5;
+  elsif new.successful_referrals < 10 then
+    vip_name := 'VIP1';
+    quota_limit := 10;
+  elsif new.successful_referrals < 15 then
+    vip_name := 'VIP2';
+    quota_limit := 15;
+  elsif new.successful_referrals < 20 then
+    vip_name := 'VIP3';
+    quota_limit := 20;
+  else
+    vip_name := 'VIP4';
+    quota_limit := 25;
+  end if;
+
+  -- Only update if the value changed (idempotent)
+  if new.vip_level != vip_name or new.daily_quota_limit != quota_limit then
+    update public.profiles
+    set vip_level = vip_name,
+        daily_quota_limit = quota_limit
+    where id = new.id;
+  end if;
+
+  return new;
+end;
+$$;
+
+-- =====================================================
+-- Index optimization for VIP lookups
+-- =====================================================
+create index if not exists idx_profiles_vip_level on public.profiles(vip_level);
+create index if not exists idx_profiles_referrals on public.profiles(successful_referrals);
