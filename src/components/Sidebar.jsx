@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import logo from '../assets/logo.png';
 import { Home, PlayCircle, Users, Wallet, User, LogOut, Settings, MessageCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
@@ -34,7 +35,7 @@ const Sidebar = () => {
   return (
     <aside className="hidden md:flex flex-col w-64 shrink-0 glass border-r border-white/10 py-6 px-4">
       <div className="text-center mb-4">
-        <img src="/logo.png" alt="HIDASE Logo" className="w-32 h-auto mx-auto mb-2" />
+        <img src={logo} alt="HIDASE Logo" className="w-32 h-auto mx-auto mb-2" />
       </div>
 <nav className="flex-1 space-y-1">
         {navItems.map(({ path, label, icon: Icon }) => (
