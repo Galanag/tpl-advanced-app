@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { User, Phone, Lock, Ticket, Loader2, Eye, EyeOff } from 'lucide-react';
+import { User, Phone, Lock, Ticket, Loader2, Eye, EyeOff, MessageCircle } from 'lucide-react';
 
 // Import the logo from the src/assets folder
 import logo from '../assets/logo.png';

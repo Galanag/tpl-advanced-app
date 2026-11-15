@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import Header from './Header';
 import BottomNav from './BottomNav';
 import Sidebar from './Sidebar';
+import { MessageCircle } from 'lucide-react';
 
 const Layout = () => {
   const { user, isLoading } = useAuthStore();
