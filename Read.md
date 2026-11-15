@@ -12,3 +12,7 @@ Admin Panel: Accessible at /admin (requires is_admin = true in profiles table).
 # supabase login
 # supabase init
 # supabase link --project-ref mnlijtkyqwyujimwootg
+
+git add .
+git commit -m "Solving empty screen"
+git push origin main
