@@ -13,6 +13,7 @@ const Deposit = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settings, setSettings] = useState({});  // ADD THIS
   const [copied, setCopied] = useState(false);
 
   const [form, setForm] = useState({
@@ -65,8 +66,19 @@ const Deposit = () => {
   useEffect(() => {
     setError('');
     setSuccess('');
+    const fetchSettings = async () => {
+      const { data } = await supabase.from('admin_settings').select('*');
+      if (data) {
+        const settingsObj = {};
+        data.forEach((item) => {
+          settingsObj[item.key] = item.value;
+        });
+        setSettings(settingsObj);
+      }
+      setSettingsLoading(false);
+    };
     fetchSettings();
-  }, [user, profile?.vip_level]);
+  }, []);
 
   // Reset the amount when the mode or selected target changes
   useEffect(() => {
@@ -75,22 +87,7 @@ const Deposit = () => {
     } else if (form.targetVip) {
       setForm((prev) => ({ ...prev, amount: String(getUpgradeCost(form.targetVip)) }));
     }
-  }, [isRegistration, registrationFee, form.targetVip, settings]);
-
-  const fetchSettings = async () => {
-    try {
-      const { data, error: fetchErr } = await supabase.from('admin_settings').select('*');
-      if (fetchErr) throw fetchErr;
-      const settingsMap = {};
-      (data || []).forEach((s) => { settingsMap[s.key] = s.value; });
-      setSettings(settingsMap);
-    } catch (err) {
-      console.error('Error fetching settings:', err);
-      setError('Failed to load settings');
-    } finally {
-      setSettingsLoading(false);
-    }
-  };
+  }, [isRegistration, registrationFee, form.targetVip]);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
