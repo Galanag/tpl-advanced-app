@@ -27,14 +27,15 @@ const Wallet = () => {
   const [message, setMessage] = useState(null);
   
   // Withdrawal limits
-  const [withdrawalMinimum, setWithdrawalMinimum] = useState(100);
+  const [withdrawalMinimum, setWithdrawalMinimum] = useState(3000);
   const [referralsRequired, setReferralsRequired] = useState(5);
   const [settingsLoading, setSettingsLoading] = useState(true);
   
   const [freshProfile, setFreshProfile] = useState(profile);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeReferralsCount, setActiveReferralsCount] = useState(0);
 
-  // Fetch fresh profile data on mount (CRITICAL: Includes referral_code now)
+  // 1. Fetch fresh profile data (balance, payment method, referral code)
   useEffect(() => {
     if (!user?.id) return;
     const fetchFreshProfile = async () => {
@@ -56,9 +57,30 @@ const Wallet = () => {
       }
     };
     fetchFreshProfile();
-  }, [user?.id, showWithdraw]); // Refetch when modal opens
+  }, [user?.id, showWithdraw]);
 
-  const freshSuccessfulReferrals = parseInt(freshProfile?.successful_referrals || 0);
+  // 2. Fetch the EXACT number of active referrals from the database
+  useEffect(() => {
+    if (!user?.id) return;
+    const fetchActiveReferralsCount = async () => {
+      try {
+        // Query the profiles table counting users referred by this user whose status is active
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('referred_by', user.id)
+          .eq('account_status', 'active');
+        
+        if (!error && data) {
+          setActiveReferralsCount(data.length);
+        }
+      } catch (err) {
+        console.error('Error counting active referrals:', err);
+      }
+    };
+    fetchActiveReferralsCount();
+  }, [user?.id, showWithdraw]);
+
   const freshBalance = parseFloat(freshProfile?.balance) || 0;
   const freshPaymentMethod = freshProfile?.payment_account_number || profile?.payment_account_number;
   
@@ -266,7 +288,7 @@ const Wallet = () => {
           refreshProfile={refreshProfile}
           withdrawalMinimum={withdrawalMinimum}
           referralsRequired={referralsRequired}
-          successfulReferrals={freshSuccessfulReferrals}
+          successfulReferrals={activeReferralsCount} // PASSING THE EXACT COUNT FROM DB
           onClose={() => setShowWithdraw(false)}
           onSuccess={(text) => { setMessage({ type: 'success', text }); setShowWithdraw(false); fetchFinancialMetrics(); fetchTransactions(); }}
         />
