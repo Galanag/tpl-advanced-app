@@ -4,51 +4,88 @@ import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import GlassCard from './GlassCard';
 
-const WithdrawModal = ({ balance, user, profile, refreshProfile, withdrawalMinimum, requiredReferrals, successfulReferrals, onClose, onSuccess }) => {
+const WithdrawModal = ({ 
+  balance, 
+  user, 
+  profile, 
+  refreshProfile, 
+  withdrawalMinimum, 
+  requiredReferrals, 
+  successfulReferrals, 
+  onClose, 
+  onSuccess 
+}) => {
   const navigate = useNavigate();
+  
+  // --- State ---
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  
+  // --- Referral Gate State ---
   const [showReferralGate, setShowReferralGate] = useState(false);
-
-  const minWithdrawal = withdrawalMinimum || 100;
   const [copied, setCopied] = useState(false);
-  let [copyMsg, setCopyMsg] = useState('');
+  const [copyMsg, setCopyMsg] = useState('');
 
-// Build the referral link from the user's own referral code and the current origin
-// Build the referral link - with fallback for missing referral_code
-let referralLink;
-if (!profile?.referral_code) {
-  referralLink = null;
-  copyMsg = 'Generating code... please refresh.';
-} else {
-  referralLink = `${window.location.origin}/auth?ref=${profile.referral_code}`;
-  copyMsg = '';
-}
+  const minWithdrawal = withdrawalMinimum || 3000;
 
-const handleWithdraw = async (e) => {
+  // Build the referral link safely
+  let referralLink = null;
+  let initialCopyMsg = '';
+  if (!profile?.referral_code) {
+    initialCopyMsg = 'Generating code... please refresh.';
+  } else {
+    referralLink = `${window.location.origin}/auth?ref=${profile.referral_code}`;
+  }
+
+  // ==========================================
+  // Main Withdrawal Submission Logic
+  // ==========================================
+  const handleWithdraw = async (e) => {
     e.preventDefault();
     setError('');
 
     const amt = parseFloat(amount);
+    
+    // 1. Basic Validation
     if (!amt || amt <= 0) return setError('Enter a valid amount');
-    if (amt < minWithdrawal + 1) return setError(`Minimum withdrawal is ${minWithdrawal} ETB. You need to withdraw more than ${minWithdrawal} ETB.`);
+    
+    // 2. Minimum Withdrawal Check (Strictly >=)
+    if (amt < minWithdrawal) {
+      return setError(`Minimum withdrawal is ${minWithdrawal} ETB.`);
+    }
+    
+    // 3. Sufficient Balance Check
     if (amt > balance) return setError('Insufficient balance');
 
-    // --- Referral gate check (moved here from the Wallet page) ---
+    // 4. Referral Gate Check
     if (successfulReferrals < requiredReferrals) {
       setShowReferralGate(true);
       return;
     }
-    // --- End referral gate check ---
 
+    // 5. Process Withdrawal
     setProcessing(true);
     try {
-      await supabase.from('withdrawals').insert({ user_id: user.id, amount: amt, status: 'pending' });
-      await supabase.from('profiles').update({ balance: balance - amt }).eq('id', user.id);
+      // Insert withdrawal record
+      await supabase.from('withdrawals').insert({ 
+        user_id: user.id, 
+        amount: amt, 
+        status: 'pending' 
+      });
+      
+      // Deduct from balance
+      await supabase.from('profiles').update({ 
+        balance: balance - amt 
+      }).eq('id', user.id);
+      
+      // Refresh local profile state
       await refreshProfile();
+      
+      // Trigger success callback and close modal
       onSuccess(`Withdrawal of ${amt.toFixed(2)} ETB requested successfully.`);
+      
     } catch (err) {
       setError(err.message || 'Withdrawal failed. Please try again.');
     } finally {
@@ -56,21 +93,25 @@ const handleWithdraw = async (e) => {
     }
   };
 
-const copyReferral = async () => {
+  // ==========================================
+  // Copy Referral Link Logic
+  // ==========================================
+  const copyReferral = async () => {
     if (!profile?.referral_code) {
       alert("Your referral code is still generating. Redirecting you to the Team page where you can get it.");
       navigate('/team');
       return;
     }
+    
     try {
       const link = `${window.location.origin}/auth?ref=${profile.referral_code}`;
       await navigator.clipboard.writeText(link);
       setCopied(true);
       setCopyMsg('Link copied!');
-      setTimeout(() => { setCopied(false); setCopyMsg(''); }, 1800);
+      setTimeout(() => { setCopied(false); setCopyMsg(''); }, 2000);
     } catch {
       setCopyMsg('Failed to copy');
-      setTimeout(() => setCopyMsg(''), 1800);
+      setTimeout(() => setCopyMsg(''), 2000);
     }
   };
 
@@ -78,19 +119,23 @@ const copyReferral = async () => {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="glass-card w-full max-w-md p-6 fade-in-up">
         <h3 className="text-white font-bold text-lg mb-4">Withdraw Funds</h3>
+        
         <form onSubmit={handleWithdraw} className="space-y-4">
+          {/* Amount Input */}
           <div>
             <label className="text-white/50 text-sm block mb-1.5">Amount (ETB)</label>
             <input
               type="number"
-              min={minWithdrawal + 1}
+              min={minWithdrawal}
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="glass-input"
-              placeholder={`Min ${minWithdrawal + 1} ETB`}
+              placeholder={`Min ${minWithdrawal} ETB`}
             />
           </div>
+          
+          {/* Phone Input */}
           <div>
             <label className="text-white/50 text-sm block mb-1.5">Receiving Phone (e.g. Telebirr)</label>
             <input
@@ -101,11 +146,22 @@ const copyReferral = async () => {
               placeholder="09XXXXXXXX"
             />
           </div>
+          
+          {/* Error Message */}
           {error && <p className="text-red-400 text-sm">{error}</p>}
+          
+          {/* Action Buttons */}
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">
+              Cancel
+            </button>
             <button type="submit" disabled={processing} className="btn-primary flex-1 flex items-center justify-center gap-2">
-              {processing ? (<><Loader2 size={16} className="animate-spin" />Processing…</>) : 'Confirm'}
+              {processing ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Processing…
+                </>
+              ) : 'Confirm'}
             </button>
           </div>
         </form>
@@ -118,18 +174,39 @@ const copyReferral = async () => {
             <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-500/20 flex items-center justify-center">
               <AlertTriangle size={28} className="text-amber-400" />
             </div>
+            
             <h4 className="text-white font-bold text-lg mb-2">Withdrawal Locked</h4>
+            
             <p className="text-white/60 text-sm mb-5">
               To withdraw your {amount} ETB, you must invite {requiredReferrals} friends who have paid the registration fee. You currently have {successfulReferrals} active referrals.
             </p>
+            
             <div className="flex gap-3">
-              <button type="button" onClick={() => setShowReferralGate(false)} className="btn-secondary flex-1">Close</button>
-              <button type="button" onClick={copyReferral} className="btn-primary flex-1 flex items-center justify-center gap-2">
-                {copied ? <><CheckCircle2 size={16} /> Copied</> : <><Copy size={16} /> Copy Referral Link</>}
+              <button 
+                type="button" 
+                onClick={() => setShowReferralGate(false)} 
+                className="btn-secondary flex-1"
+              >
+                Close
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={copyReferral} 
+                className="btn-primary flex-1 flex items-center justify-center gap-2"
+              >
+                {copied ? (
+                  <><CheckCircle2 size={16} /> Copied</>
+                ) : (
+                  <><Copy size={16} /> Copy Link</>
+                )}
               </button>
             </div>
+            
             {copyMsg && (
-              <p className={`text-xs mt-3 ${copied ? 'text-emerald-400' : 'text-red-400'}`}>{copyMsg}</p>
+              <p className={`text-xs mt-3 ${copied ? 'text-emerald-400' : 'text-red-400'}`}>
+                {copyMsg}
+              </p>
             )}
           </GlassCard>
         </div>

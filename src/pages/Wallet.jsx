@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Wallet as WalletIcon, ArrowUpRight, ArrowLeftRight, TrendingUp, Gift, PlusCircle, Banknote, CheckCircle2, X, AlertTriangle } from 'lucide-react';
+import { 
+  Wallet as WalletIcon, 
+  ArrowUpRight, 
+  TrendingUp, 
+  Gift, 
+  PlusCircle, 
+  Loader2 
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import GlassCard from '../components/GlassCard';
@@ -8,35 +15,40 @@ import WithdrawModal from '../components/WithdrawModal';
 import { useNavigate } from 'react-router-dom';
 
 const Wallet = () => {
+  // --- Global Auth State ---
   const profile = useAuthStore((s) => s.profile);
   const user = useAuthStore((s) => s.user);
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
   const navigate = useNavigate();
   
-  // Financial metrics
+  // --- Financial Metrics State ---
   const [availableBalance, setAvailableBalance] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [totalApprovedDeposits, setTotalApprovedDeposits] = useState(0);
   const [pendingWithdrawalsAmount, setPendingWithdrawalsAmount] = useState(0);
   const [totalWithdrawn, setTotalWithdrawn] = useState(0);
   
-  // Transaction history
+  // --- Transaction History State ---
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // --- Modal & UI States ---
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [message, setMessage] = useState(null);
   
-  // Withdrawal limits
-  const [withdrawalMinimum, setWithdrawalMinimum] = useState(3000);
-  const [settingsLoading, setSettingsLoading] = useState(true);
-  
+  // --- Withdrawal Limits & Fresh Data ---
+  // Hardcoding 3000 as requested, removing the DB fetch for this to prevent bugs.
+  const [withdrawalMinimum] = useState(3000); 
   const [freshProfile, setFreshProfile] = useState(profile);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeReferralsCount, setActiveReferralsCount] = useState(0);
 
-  // 1. Fetch fresh profile data (balance, payment method, referral code)
+  // ==========================================
+  // 1. Fetch Fresh Profile Data
+  // ==========================================
   useEffect(() => {
     if (!user?.id) return;
+    
     const fetchFreshProfile = async () => {
       setIsRefreshing(true);
       try {
@@ -45,6 +57,7 @@ const Wallet = () => {
           .select('successful_referrals, balance, payment_account_number, vip_level, account_status, referral_code')
           .eq('id', user.id)
           .single();
+          
         if (data && !error) {
           setFreshProfile(data);
           setAvailableBalance(parseFloat(data.balance) || 0);
@@ -55,15 +68,18 @@ const Wallet = () => {
         setIsRefreshing(false);
       }
     };
+    
     fetchFreshProfile();
   }, [user?.id, showWithdraw]);
 
-  // 2. Fetch the EXACT number of active referrals from the database
+  // ==========================================
+  // 2. Fetch Exact Active Referrals Count
+  // ==========================================
   useEffect(() => {
     if (!user?.id) return;
+    
     const fetchActiveReferralsCount = async () => {
       try {
-        // Query the profiles table counting users referred by this user whose status is active
         const { data, error } = await supabase
           .from('profiles')
           .select('id')
@@ -77,51 +93,37 @@ const Wallet = () => {
         console.error('Error counting active referrals:', err);
       }
     };
+    
     fetchActiveReferralsCount();
   }, [user?.id, showWithdraw]);
 
   const freshBalance = parseFloat(freshProfile?.balance) || 0;
   const freshPaymentMethod = freshProfile?.payment_account_number || profile?.payment_account_number;
 
-  // Calculate referralsRequired based on VIP level
+  // ==========================================
+  // 3. Dynamic Referral Requirement Logic
+  // ==========================================
+  // Calculates how many referrals are needed to unlock withdrawal based on VIP level
   const getReferralsRequired = (vipLevel) => {
     switch (vipLevel) {
-      case 'Basic':
-        return 5;
-      case 'VIP1':
-        return 10;
-      case 'VIP2':
-        return 15;
-      case 'VIP3':
-        return 20;
-      case 'VIP4':
-        return 25;
-      default:
-        return 5;
+      case 'Basic': return 5;
+      case 'VIP1': return 10;
+      case 'VIP2': return 15;
+      case 'VIP3': return 20;
+      case 'VIP4': return 25;
+      default: return 5;
     }
   };
 
   const requiredReferrals = getReferralsRequired(freshProfile?.vip_level || 'Basic');
   
+  // ==========================================
+  // 4. Fetch Financial Metrics & Transactions
+  // ==========================================
   useEffect(() => {
     fetchFinancialMetrics();
     fetchTransactions();
-    fetchSettings();
   }, [profile?.id]);
-  
-  const fetchSettings = async () => {
-    try {
-      const { data, error } = await supabase.from('admin_settings').select('key, value');
-      if (error) throw error;
-      const map = {};
-      (data || []).forEach((s) => { map[s.key] = s.value; });
-      setWithdrawalMinimum(parseInt(map.withdrawal_minimum || 3000, 10));
-    } catch (err) {
-      console.error('Error fetching settings:', err);
-    } finally {
-      setSettingsLoading(false);
-    }
-  };
   
   const fetchFinancialMetrics = async () => {
     if (!user?.id) return;
@@ -129,44 +131,45 @@ const Wallet = () => {
     try {
       setAvailableBalance(freshBalance);
       
+      // Total Earnings (Commissions)
       const { data: commissionsData, error: commissionsError } = await supabase
         .from('commissions')
         .select('amount')
         .eq('user_id', user.id);
-      
       if (commissionsError) throw commissionsError;
       const totalEarn = (commissionsData || []).reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
       setTotalEarnings(totalEarn);
       
+      // Total Approved Deposits
       const { data: depositsData, error: depositsError } = await supabase
         .from('deposits')
         .select('amount')
         .eq('user_id', user.id)
         .eq('status', 'approved');
-      
       if (depositsError) throw depositsError;
       const totalDeposits = (depositsData || []).reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
       setTotalApprovedDeposits(totalDeposits);
       
+      // Pending Withdrawals
       const { data: pendingWithdrawalsData, error: pendingWithdrawalsError } = await supabase
         .from('withdrawals')
         .select('amount')
         .eq('user_id', user.id)
         .eq('status', 'pending');
-      
       if (pendingWithdrawalsError) throw pendingWithdrawalsError;
       const totalPending = (pendingWithdrawalsData || []).reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
       setPendingWithdrawalsAmount(totalPending);
       
+      // Total Withdrawn (Approved/Completed)
       const { data: withdrawnData, error: withdrawnError } = await supabase
         .from('withdrawals')
         .select('amount')
         .eq('user_id', user.id)
         .in('status', ['approved', 'completed']);
-      
       if (withdrawnError) throw withdrawnError;
       const totalWithdrawnAmount = (withdrawnData || []).reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
       setTotalWithdrawn(totalWithdrawnAmount);
+      
     } catch (err) {
       console.error('Error fetching financial metrics:', err);
     }
@@ -180,10 +183,12 @@ const Wallet = () => {
         supabase.from('commissions').select('id, amount, type, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
         supabase.from('withdrawals').select('id, amount, status, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
       ]);
+      
       const all = [
         ...(cr.data || []).map(c => ({ id: `c-${c.id}`, type: 'commission', amount: parseFloat(c.amount), label: `Commission (${c.type || 'P1'})`, date: c.created_at })),
         ...(wr.data || []).map(w => ({ id: `w-${w.id}`, type: 'withdrawal', amount: -parseFloat(w.amount), label: `Withdrawal (${w.status})`, date: w.created_at })),
       ].sort((a, b) => new Date(b.date) - new Date(a.date));
+      
       setTransactions(all);
     } catch (err) {
       console.error('Error fetching transactions:', err);
@@ -248,7 +253,7 @@ const Wallet = () => {
         </GlassCard>
       </div>
       
-      {/* Action Buttons */}
+      {/* Action Buttons Card */}
       <GlassCard className="relative overflow-hidden">
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl -ml-10 -mb-10" />
         <div className="relative flex items-center justify-between">
@@ -302,13 +307,18 @@ const Wallet = () => {
         <WithdrawModal
           balance={freshBalance}
           user={user}
-          profile={freshProfile} // Passing the fresh profile with referral_code
+          profile={freshProfile}
           refreshProfile={refreshProfile}
           withdrawalMinimum={withdrawalMinimum}
           requiredReferrals={requiredReferrals}
-          successfulReferrals={activeReferralsCount} // PASSING THE EXACT COUNT FROM DB
+          successfulReferrals={activeReferralsCount}
           onClose={() => setShowWithdraw(false)}
-          onSuccess={(text) => { setMessage({ type: 'success', text }); setShowWithdraw(false); fetchFinancialMetrics(); fetchTransactions(); }}
+          onSuccess={(text) => { 
+            setMessage({ type: 'success', text }); 
+            setShowWithdraw(false); 
+            fetchFinancialMetrics(); 
+            fetchTransactions(); 
+          }}
         />
       )}
       

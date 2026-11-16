@@ -22,7 +22,9 @@ const Tasks = () => {
   const [progressMap, setProgressMap] = useState({});
 
   // Fetch VIP level and settings for reward display and quota
-  const [userVipLevel, setUserVipLevel] = useState(profile?.vip_level || 'Basic');
+    const [userVipLevel, setUserVipLevel] = useState(profile?.vip_level || 'Basic');
+  const VIP_LEVELS = ['Basic', 'VIP1', 'VIP2', 'VIP3', 'VIP4', 'VIP5'];
+  const userVipIndex = VIP_LEVELS.indexOf(profile?.vip_level || 'Basic');
   const [userRewardAmount, setUserRewardAmount] = useState(0);
   const [quotaLimit, setQuotaLimit] = useState(profile?.daily_quota_limit || 10);
   const [watchedToday, setWatchedToday] = useState(profile?.daily_videos_watched || 0);
@@ -127,6 +129,11 @@ const Tasks = () => {
   const fetchVideos = async () => {
     setLoading(true);
     const { data, error } = await supabase.from('videos').select('*').order('created_at', { ascending: false });
+    const visibleVideos = data?.filter(v => {
+      const videoVipIndex = VIP_LEVELS.indexOf(v.min_vip_level || 'Basic');
+      return videoVipIndex <= userVipIndex;
+    }) || [];
+    setVideos(visibleVideos);
     if (error) {
       console.error('[Tasks] Error fetching videos:', error);
       setVideos([]);
