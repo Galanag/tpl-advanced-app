@@ -63,7 +63,7 @@ const Sidebar = () => {
         className="flex items-center gap-3 px-4 py-3 rounded-xl text-sky-400 hover:text-sky-300 transition-all active:scale-95"
       >
         <MessageCircle size={20} className="text-sky-400" />
-        <span className="font-medium">Support</span>
+        <span className="font-medium">Telegram Support</span>
       </a>
 
       <button

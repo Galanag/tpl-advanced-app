@@ -45,7 +45,7 @@ const Layout = () => {
         </main>
       </div>
 
-      /* Floating Support Button */
+      {/* Floating Support Button */}
       <a
         href="https://t.me/Hidase_Investment_Admin"
         target="_blank"
