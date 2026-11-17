@@ -327,7 +327,7 @@ const Deposit = () => {
               <p className="text-white/50 text-xs mt-2">Please provide at least one proof of payment (Reference or Screenshot).</p>
 
               <div>
-                <label className="text-white/50 text-sm block mb-1.5">Transaction Reference (Optional)</label>
+                <label className="text-white/50 text-sm block mb-1.5">Transaction Reference * </label>
                 <input
                   type="text"
                   name="paymentReference"
@@ -340,7 +340,7 @@ const Deposit = () => {
               </div>
 
               <div>
-                <label className="text-white/50 text-sm block mb-1.5">Payment Screenshot (Optional)</label>
+                <label className="text-white/50 text-sm block mb-1.5">Payment Screenshot *</label>
                 <input
                   type="file"
                   name="proofImage"
