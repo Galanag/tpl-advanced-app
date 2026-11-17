@@ -38,17 +38,17 @@ const Home = () => {
     { label: 'Stats', icon: BarChart3, path: '/profile', color: 'from-purple-500 to-purple-600' },
   ];
 
-
-    {/* Amharic Welcome */}
-  <div className="mb-6 bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-    <p className="text-amber-400 font-bold text-lg mb-2">እንኳን ወደ ህዳሴ ኢንቨስትመንት ግሩፕ በሰላም መጡ!</p>
-    <p className="text-white/70 text-sm">
-      የተለያዩ ቪዲዮዎችን ለ60 ሰከንድ ብቻ በመመልከት በእያንዳንዱ ቪዲዮ 600 ብር ያግኙ። ቀሪ ሂሳብዎ 3,000 ብር ሲደርስ ገንዘብዎን በቀላሉ ወጪ ማድረግ ይችላሉ።
-    </p>
-  </div>
-
-return (
+  return (
     <div className="fade-in-up space-y-6">
+      
+      {/* Amharic Welcome Message - MOVED INSIDE THE RETURN STATEMENT */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center shadow-lg">
+        <p className="text-amber-400 font-bold text-lg mb-2">እንኳን ወደ ህዳሴ ኢንቨስትመንት ግሩፕ በሰላም መጡ!</p>
+        <p className="text-white/70 text-sm">
+          የተለያዩ ቪዲዮዎችን ለ60 ሰከንድ ብቻ በመመልከት በእያንዳንዱ ቪዲዮ 600 ብር ያግኙ። ቀሪ ሂሳብዎ 3,000 ብር ሲደርስ ገንዘብዎን በቀላሉ ወጪ ማድረግ ይችላሉ።
+        </p>
+      </div>
+
       {/* Balance Card */}
       <GlassCard className="relative overflow-hidden">
         <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl -mr-10 -mt-10" />
