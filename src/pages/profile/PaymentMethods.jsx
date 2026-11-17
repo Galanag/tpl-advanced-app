@@ -1,141 +1,119 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../store/authStore';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Loader2, Banknote, User, Phone } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { useNavigate } from 'react-router-dom';
+import GlassCard from '../../components/GlassCard';
+import { ArrowLeft, Save, Smartphone, Loader2, CheckCircle2 } from 'lucide-react';
 
 const PaymentMethods = () => {
-  const { profile, refreshProfile } = useAuthStore();
+  const { user, profile, refreshProfile } = useAuthStore();
   const navigate = useNavigate();
-  const [paymentMethod, setPaymentMethod] = useState(profile?.payment_method || '');
-  const [paymentAccountName, setPaymentAccountName] = useState(profile?.payment_account_name || '');
-  const [paymentAccountNumber, setPaymentAccountNumber] = useState(profile?.payment_account_number || '');
+  
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  
+  const [form, setForm] = useState({
+    payment_account_name: '',
+    payment_account_number: ''
+  });
 
-  const paymentMethods = [
-    { label: 'Telebirr', value: 'Telebirr' },
-    { label: 'CBE Birr', value: 'CBE Birr' },
-    { label: 'Awash Bank', value: 'Awash Bank' },
-    { label: 'Dashen Bank', value: 'Dashen Bank' },
-    { label: 'Bank of Abyssinia', value: 'Bank of Abyssinia' },
-    { label: 'Other', value: 'Other' },
-  ];
+  useEffect(() => {
+    if (profile) {
+      setForm({
+        payment_account_name: profile.payment_account_name || '',
+        payment_account_number: profile.payment_account_number || ''
+      });
+    }
+  }, [profile]);
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
+    setError('');
+    setSuccess('');
+
+    if (!form.payment_account_name.trim() || !form.payment_account_number.trim()) {
+      setError('Account name and number are required');
+      setLoading(false);
+      return;
+    }
+
     try {
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
-          payment_method: paymentMethod || null,
-          payment_account_name: paymentAccountName || null,
-          payment_account_number: paymentAccountNumber || null,
+          payment_method: 'Telebirr', // Hardcoded enforce
+          payment_account_name: form.payment_account_name.trim(),
+          payment_account_number: form.payment_account_number.trim(),
+          updated_at: new Date().toISOString()
         })
-        .eq('id', profile?.id);
+        .eq('id', user.id);
 
       if (updateError) throw updateError;
 
-      // Update the auth store
       await refreshProfile();
-      setSuccess(true);
-      setTimeout(() => {
-        setSuccess(false);
-        navigate('/profile');
-      }, 1500);
+      setSuccess('Payment method saved successfully!');
+      setTimeout(() => navigate('/profile'), 1500);
     } catch (err) {
-      setError(err.message || 'Failed to save payment method');
+      setError(err.message || 'Failed to save.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fade-in-up space-y-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-white">Payment Methods</h2>
-        <button
-          onClick={() => navigate('/profile')}
-          className="text-sm text-white/60 hover:text-white"
-        >
-          Back
+    <div className="fade-in-up space-y-6 max-w-lg mx-auto">
+      <div className="flex items-center gap-3 mb-2">
+        <button onClick={() => navigate('/profile')} className="p-2 rounded-full hover:bg-white/10 text-white/60">
+          <ArrowLeft size={18} />
         </button>
+        <div>
+          <h2 className="text-xl font-bold text-white">Payment Methods</h2>
+          <p className="text-white/50 text-sm mt-0.5">Set up your withdrawal account</p>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="relative">
-          <Banknote size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-          <select
-            name="paymentMethod"
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            className="glass-input pl-10"
-            autoComplete="off"
-            required
-          >
-            <option value="">Select Payment Method</option>
-            {paymentMethods.map((method) => (
-              <option key={method.value} value={method.value}>
-                {method.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="relative">
-          <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-          <input
-            type="text"
-            name="paymentAccountName"
-            placeholder="Account Name (e.g., John Doe)"
-            value={paymentAccountName}
-            onChange={(e) => setPaymentAccountName(e.target.value)}
-            className="glass-input pl-10"
-            autoComplete="name"
-            required
-          />
-        </div>
-
-        <div className="relative">
-          <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-          <input
-            type="tel"
-            name="paymentAccountNumber"
-            placeholder="Account Number"
-            value={paymentAccountNumber}
-            onChange={(e) => setPaymentAccountNumber(e.target.value)}
-            className="glass-input pl-10"
-            autoComplete="tel"
-            required
-          />
-        </div>
-
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
-            <p className="text-red-400 text-sm">{error}</p>
+      <GlassCard className="p-6">
+        <div className="flex items-center gap-3 mb-6 bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl">
+          <Smartphone size={20} className="text-amber-400" />
+          <div>
+            <p className="text-white font-semibold text-sm">Telebirr Only</p>
+            <p className="text-white/50 text-xs">All withdrawals are processed via Telebirr.</p>
           </div>
-        )}
+        </div>
 
-        {success && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3">
-            <p className="text-emerald-400 text-sm">Payment method saved successfully!</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-white/50 text-sm block mb-1.5">Payment Method</label>
+            {/* NO DROPDOWN. JUST TEXT. */}
+            <div className="glass-input bg-white/5 py-3 px-4 text-white/70 flex items-center gap-2 cursor-not-allowed">
+              <Smartphone size={16} className="text-amber-400" /> Telebirr (Default)
+            </div>
           </div>
-        )}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? (
-            <>
-              <Loader2 size={18} className="animate-spin" />
-              Saving...
-            </>
-          ) : (
-            'Save Payment Method'
-          )}
-        </button>
-      </form>
+          <div>
+            <label className="text-white/50 text-sm block mb-1.5">Account Name (Full Name)</label>
+            <input type="text" name="payment_account_name" value={form.payment_account_name} onChange={handleChange} className="glass-input" placeholder="e.g. Abebe Bikila" />
+          </div>
+
+          <div>
+            <label className="text-white/50 text-sm block mb-1.5">Telebirr Phone Number</label>
+            <input type="tel" name="payment_account_number" value={form.payment_account_number} onChange={handleChange} className="glass-input" placeholder="e.g. 0912345678" />
+          </div>
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {success && <p className="text-emerald-400 text-sm">{success}</p>}
+
+          <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2 mt-4">
+            {loading ? <><Loader2 size={18} className="animate-spin" /> Saving...</> : <><Save size={18} /> Save Payment Method</>}
+          </button>
+        </form>
+      </GlassCard>
     </div>
   );
 };
