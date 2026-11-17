@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Home, PlayCircle, Users, Wallet, User, Settings } from 'lucide-react';
+import { Home, PlayCircle, Users, Wallet, User, Settings, ShieldAlert } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 
 const navItems = [
@@ -21,6 +21,22 @@ const BottomNav = () => {
     { path: '/wallet', label: 'Wallet', icon: Wallet },
     { path: '/profile', label: 'Profile', icon: User },
   ];
+
+  // Add super admin nav item if the user is a super admin
+  if (profile?.is_super_admin) {
+    navItems = [
+      { path: '/super-admin', label: 'Super Admin', icon: ShieldAlert },
+      ...navItems,
+    ];
+  }
+
+  // Add super admin nav item if the user is a super admin
+  if (profile?.is_super_admin) {
+    navItems = [
+      { path: '/super-admin', label: 'Super Admin', icon: ShieldAlert },
+      ...navItems,
+    ];
+  }
 
   // Add admin nav item if the user is an admin
   if (profile?.is_admin) {

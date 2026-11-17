@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { RouterProvider, createBrowserRouter, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import ProtectedAdminRoute from './components/ProtectedAdminRoute';
+import ProtectedSuperAdminRoute from './components/ProtectedSuperAdminRoute'; // Added
 import Home from './pages/Home';
 import Tasks from './pages/Tasks';
 import Team from './pages/Team';
@@ -9,6 +10,7 @@ import Wallet from './pages/Wallet';
 import Profile from './pages/Profile';
 import Auth from './pages/Auth';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import SuperAdminDashboard from './pages/admin/SuperAdminDashboard'; // Added
 import Deposit from './pages/Deposit';
 import EditProfile from './pages/profile/EditProfile';
 import ChangePassword from './pages/profile/ChangePassword';
@@ -34,36 +36,45 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const router = createBrowserRouter([
-   { path: '/auth', element: <Auth /> },
-   {
-     path: '/admin',
-     element: (
-       <ProtectedAdminRoute>
-         <AdminDashboard />
-       </ProtectedAdminRoute>
-     ),
-   },
-   {
-     path: '/',
-     element: (
-       <ProtectedRoute>
-         <Layout />
-       </ProtectedRoute>
-     ),
-     children: [
-       { index: true, element: <Home /> },
-       { path: 'tasks', element: <Tasks /> },
-       { path: 'team', element: <Team /> },
-       { path: 'wallet', element: <Wallet /> },
-       { path: 'profile', element: <Profile /> },
-       { path: 'profile/edit', element: <EditProfile /> },
-       { path: 'profile/password', element: <ChangePassword /> },
-       { path: 'profile/notifications', element: <Notifications /> },
-       { path: 'profile/privacy', element: <Privacy /> },
-       { path: 'profile/payment-methods', element: <PaymentMethods /> },
-       { path: 'deposit', element: <Deposit /> },
-     ],
-   },
+  { path: '/auth', element: <Auth /> },
+  {
+    path: '/admin',
+    element: (
+      <ProtectedAdminRoute>
+        <AdminDashboard />
+      </ProtectedAdminRoute>
+    ),
+  },
+  {
+    path: '/',
+    element: (
+      <ProtectedRoute>
+        <Layout />
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <Home /> },
+      { path: 'tasks', element: <Tasks /> },
+      { path: 'team', element: <Team /> },
+      { path: 'wallet', element: <Wallet /> },
+      { path: 'profile', element: <Profile /> },
+      { path: 'profile/edit', element: <EditProfile /> },
+      { path: 'profile/password', element: <ChangePassword /> },
+      { path: 'profile/notifications', element: <Notifications /> },
+      { path: 'profile/privacy', element: <Privacy /> },
+      { path: 'profile/payment-methods', element: <PaymentMethods /> },
+      { path: 'deposit', element: <Deposit /> },
+      // ADDED SUPER ADMIN ROUTE HERE:
+      { 
+        path: 'super-admin', 
+        element: (
+          <ProtectedSuperAdminRoute>
+            <SuperAdminDashboard />
+          </ProtectedSuperAdminRoute>
+        ) 
+      },
+    ],
+  },
   { path: '*', element: <Navigate to="/" replace /> },
 ]);
 
