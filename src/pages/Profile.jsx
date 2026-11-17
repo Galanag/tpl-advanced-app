@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Link } from 'react-router-dom';
-import { User, Phone, Award, Edit3, Lock, Bell, LogOut, ChevronRight, Shield, Banknote } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { User, Phone, Award, Edit3, Lock, Bell, LogOut, ChevronRight, Shield, Banknote, MessageCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import GlassCard from '../components/GlassCard';
 
@@ -28,13 +27,13 @@ const Profile = () => {
     }
   };
 
-    const settings = [
-      { label: 'Edit Profile', icon: Edit3 },
-      { label: 'Change Password', icon: Lock },
-      { label: 'Notifications', icon: Bell },
-      { label: 'Privacy & Security', icon: Shield },
-      { label: 'Payment Methods', icon: Banknote },
-    ];
+  const settings = [
+    { label: 'Edit Profile', icon: Edit3, path: '/profile/edit' },
+    { label: 'Change Password', icon: Lock, path: '/profile/password' },
+    { label: 'Notifications', icon: Bell, path: '/profile/notifications' },
+    { label: 'Privacy & Security', icon: Shield, path: '/profile/privacy' },
+    { label: 'Payment Methods', icon: Banknote, path: '/profile/payment-methods' },
+  ];
 
   return (
     <div className="fade-in-up space-y-6">
@@ -58,7 +57,8 @@ const Profile = () => {
           <div className="flex items-center justify-center gap-2 mt-3">
             <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/30 text-amber-400 text-sm font-semibold">
               <Award size={14} />
-              {profile?.level || 'Intern'}
+              {/* Show VIP Level if available, fallback to legacy level */}
+              {profile?.vip_level || profile?.level || 'Basic'}
             </span>
           </div>
 
@@ -70,8 +70,8 @@ const Profile = () => {
               </p>
             </div>
             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-              <p className="text-white/40 text-xs">Team Size</p>
-              <p className="text-white font-bold text-lg">{profile?.team_size || 0}</p>
+              <p className="text-white/40 text-xs">Active Referrals</p>
+              <p className="text-white font-bold text-lg">{profile?.successful_referrals || 0}</p>
             </div>
           </div>
 
@@ -99,29 +99,19 @@ const Profile = () => {
       <div>
         <h3 className="text-white font-semibold mb-3">Settings</h3>
         <GlassCard className="divide-y divide-white/10 p-0">
-              {settings.map(({ label, icon: Icon }) => (
-                <Link
-                  to={label.toLowerCase().includes('edit') 
-                    ? '/profile/edit' 
-                    : label.toLowerCase().includes('password') 
-                    ? '/profile/password' 
-                    : label.toLowerCase().includes('notifications') 
-                    ? '/profile/notifications' 
-                    : label.toLowerCase().includes('privacy') 
-                    ? '/profile/privacy' 
-                    : label.toLowerCase().includes('payment methods') 
-                    ? '/profile/payment-methods' 
-                    : '/profile'}
-                  key={label}
-                  className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 transition-colors active:scale-[0.99]"
-                >
-                  <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
-                    <Icon size={16} className="text-amber-400" />
-                  </div>
-                  <span className="text-white/80 text-sm font-medium flex-1 text-left">{label}</span>
-                  <ChevronRight size={16} className="text-white/30" />
-                </Link>
-              ))}
+          {settings.map(({ label, icon: Icon, path }) => (
+            <Link
+              to={path}
+              key={label}
+              className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 transition-colors active:scale-[0.99]"
+            >
+              <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+                <Icon size={16} className="text-amber-400" />
+              </div>
+              <span className="text-white/80 text-sm font-medium flex-1 text-left">{label}</span>
+              <ChevronRight size={16} className="text-white/30" />
+            </Link>
+          ))}
         </GlassCard>
       </div>
 

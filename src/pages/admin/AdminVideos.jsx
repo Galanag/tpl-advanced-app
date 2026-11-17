@@ -4,7 +4,8 @@ import { useAdminStore } from '../../store/adminStore';
 import GlassCard from '../../components/GlassCard';
 import SkeletonLoader from '../../components/SkeletonLoader';
 
-const EMPTY_FORM = { title: '', youtube_url: '', thumbnail_url: '', duration_seconds: 30, reward_amount: 10 };
+// Changed default reward to 600
+const EMPTY_FORM = { title: '', youtube_url: '', thumbnail_url: '', duration_seconds: 30, reward_amount: 600 };
 
 const AdminVideos = () => {
   const { videos, loading, addVideo, updateVideo, deleteVideo } = useAdminStore();
@@ -25,6 +26,7 @@ const AdminVideos = () => {
     setEditing(video);
     setForm({
       title: video.title,
+      // Handle both youtube_url and legacy video_url
       youtube_url: video.youtube_url || video.video_url || '',
       thumbnail_url: video.thumbnail_url || '',
       duration_seconds: video.duration_seconds,
@@ -48,12 +50,13 @@ const AdminVideos = () => {
     }
     setSaving(true);
     try {
+      // CRITICAL FIX: Send youtube_url instead of video_url to match database schema
       const payload = {
         title: form.title.trim(),
-        video_url: form.youtube_url,
+        youtube_url: form.youtube_url,
         thumbnail_url: form.thumbnail_url,
         duration_seconds: parseInt(form.duration_seconds) || 30,
-        reward_amount: parseFloat(form.reward_amount) || 0
+        reward_amount: parseFloat(form.reward_amount) || 600 // Default to 600
       };
       if (editing) {
         await updateVideo(editing.id, payload);

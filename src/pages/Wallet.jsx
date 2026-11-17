@@ -201,7 +201,7 @@ const Wallet = () => {
     ? <TrendingUp size={16} className="text-emerald-400" />
     : <ArrowUpRight size={16} className="text-amber-400" />;
   
-  const canOpenWithdraw = availableBalance >= withdrawalMinimum && freshPaymentMethod;
+  const canOpenWithdraw = availableBalance >= withdrawalMinimum;
   
   return (
     <div className="fade-in-up space-y-6">

@@ -143,7 +143,26 @@ const approveDeposit = async (depositId) => {
     }
   };
 
-  if (loading) {
+  
+  const handleDecline = async (depositId) => {
+    setLoading(true);
+    try {
+      const { error: updateError } = await supabase
+        .from('deposits')
+        .update({ status: 'rejected', updated_at: new Date().toISOString() })
+        .eq('id', depositId);
+      if (updateError) throw updateError;
+      setLoading(false);
+      fetchPendingDeposits();
+      setSuccess('Deposit declined successfully.');
+    } catch (err) {
+      console.error('[AdminPayments] Error declining deposit:', err);
+      setError('Failed to decline deposit');
+      setLoading(false);
+    }
+  };
+
+if (loading) {
     return (
       <GlassCard className="text-center py-12">
         <div className="space-y-3">
@@ -231,12 +250,20 @@ const approveDeposit = async (depositId) => {
               </p>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => approveDeposit(deposit.id)}
-                  className="btn-primary flex items-center justify-center gap-2 px-4 py-2 text-sm active:scale-95"
-                >
-                  Approve
-                </button>
+                              <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => approveDeposit(deposit.id)}
+                    className="btn-primary flex items-center justify-center gap-2 px-4 py-2 text-sm active:scale-95"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => handleDecline(deposit.id)}
+                    className="btn-secondary flex items-center justify-center gap-2 px-4 py-2 text-sm active:scale-95"
+                  >
+                    Decline
+                  </button>
+                </div>
               </div>
             </div>
           </GlassCard>

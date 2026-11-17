@@ -39,7 +39,15 @@ const Home = () => {
   ];
 
 
-  return (
+    {/* Amharic Welcome */}
+  <div className="mb-6 bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+    <p className="text-amber-400 font-bold text-lg mb-2">እንኳን ወደ ህዳሴ ኢንቨስትመንት ግሩፕ በሰላም መጡ!</p>
+    <p className="text-white/70 text-sm">
+      የተለያዩ ቪዲዮዎችን ለ60 ሰከንድ ብቻ በመመልከት በእያንዳንዱ ቪዲዮ 600 ብር ያግኙ። ቀሪ ሂሳብዎ 3,000 ብር ሲደርስ ገንዘብዎን በቀላሉ ወጪ ማድረግ ይችላሉ።
+    </p>
+  </div>
+
+return (
     <div className="fade-in-up space-y-6">
       {/* Balance Card */}
       <GlassCard className="relative overflow-hidden">
