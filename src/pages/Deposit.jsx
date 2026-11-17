@@ -13,7 +13,7 @@ const Deposit = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [settingsLoading, setSettingsLoading] = useState(true);
-  const [settings, setSettings] = useState({});  // ADD THIS
+  const [settings, setSettings] = useState({});
   const [copied, setCopied] = useState(false);
   const [telebirrName, setTelebirrName] = useState('');
   const [telebirrNumber, setTelebirrNumber] = useState('');
@@ -28,13 +28,12 @@ const Deposit = () => {
   });
 
   const isRegistration = profile?.account_status !== 'active';
-  // HARDCODE: Always show 1000 ETB for registration, ignoring DB setting
   const registrationFee = 1000;
 
-  // Determine which VIP levels are available for upgrade
+  // Determine which VIP levels are available for upgrade (Expanded to VIP10)
   const getAvailableVipLevels = () => {
     if (!profile?.vip_level) return [];
-    const vipOrder = ['Basic', 'VIP1', 'VIP2', 'VIP3'];
+    const vipOrder = ['Basic', 'VIP1', 'VIP2', 'VIP3', 'VIP4', 'VIP5', 'VIP6', 'VIP7', 'VIP8', 'VIP9', 'VIP10'];
     const currentIndex = vipOrder.indexOf(profile.vip_level);
     if (currentIndex === -1) return [];
     return vipOrder.slice(currentIndex + 1);
@@ -51,7 +50,7 @@ const Deposit = () => {
 
   useEffect(() => {
     setError('');
-    setSuccess();
+    setSuccess('');
     const fetchSettings = async () => {
       const { data } = await supabase.from('admin_settings').select('*');
       if (data) {
@@ -60,15 +59,12 @@ const Deposit = () => {
           settingsObj[item.key] = item.value;
         });
         setSettings(settingsObj);
-        // Debug: verify telebirr details are populated
-        console.log('Settings loaded:', settingsObj);
-        // Fetch telebirr details from loaded settings
-        const map = {};
-        data.forEach((s) => { map[s.key] = s.value; });
-        setTelebirrName(map.telebirr_name || '');
-        setTelebirrNumber(map.telebirr_number || '');
-        // If telebirr details are missing, show fallback
-        if (!map.telebirr_name && !map.telebirr_number) {
+        
+        // Fetch telebirr details
+        setTelebirrName(settingsObj.telebirr_name || '');
+        setTelebirrNumber(settingsObj.telebirr_number || '');
+        
+        if (!settingsObj.telebirr_name && !settingsObj.telebirr_number) {
           setTelebirrMissing(true);
         }
       }
@@ -107,6 +103,11 @@ const Deposit = () => {
     }
   };
 
+  // Logic to determine if the form can be submitted
+  const hasReference = form.paymentReference && form.paymentReference.trim() !== '';
+  const hasProof = form.proofImage !== null;
+  const canSubmit = !loading && (hasReference || hasProof) && (isRegistration || form.targetVip);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -114,30 +115,40 @@ const Deposit = () => {
 
     if (!user) { setError('User not authenticated'); return; }
     if (!isRegistration && !form.targetVip) { setError('Please select a target VIP level'); return; }
-    const hasReference = form.paymentReference && form.paymentReference.trim() !== '';
-    const hasProof = form.proofImage !== null;
-    if (!hasReference && !hasProof) { setError("Please provide either a Transaction Reference OR upload a screenshot."); return; }
+    
+    if (!hasReference && !hasProof) { 
+      setError("Please provide either a Transaction Reference OR upload a screenshot."); 
+      return; 
+    }
 
     const amount = isRegistration ? registrationFee : getUpgradeCost(form.targetVip);
     if (!amount || amount <= 0) { setError('Unable to determine a valid payment amount'); return; }
 
     setLoading(true);
+    
+    // Force a session refresh to ensure the user is fully authenticated (Fixes mobile upload issues)
+    await supabase.auth.refreshSession();
+    
     try {
-      // Upload proof image to Supabase Storage
-      const file = form.proofImage;
-      const fileName = `${Date.now()}_${file.name}`;
-      const filePath = `deposit_proofs/${fileName}`;
+      let proofImageUrl = null;
 
-      const { error: uploadError } = await supabase.storage
-        .from('deposit_proofs')
-        .upload(filePath, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+      // Only attempt upload if a file was actually selected
+      if (form.proofImage) {
+        const file = form.proofImage;
+        const fileName = `${Date.now()}_${file.name}`;
+        const filePath = `deposit_proofs/${fileName}`;
 
-      if (uploadError) throw new Error(`Failed to upload proof image: ${uploadError.message}`);
+        const { error: uploadError } = await supabase.storage
+          .from('deposit_proofs')
+          .upload(filePath, file, { cacheControl: '3600', upsert: false, contentType: file.type });
 
-      const { data: publicUrlData } = supabase.storage.from('deposit_proofs').getPublicUrl(filePath);
-      const proofImageUrl = publicUrlData.publicUrl;
+        if (uploadError) throw new Error(`Failed to upload proof image: ${uploadError.message}`);
 
-      const reference = form.paymentReference.trim();
+        const { data: publicUrlData } = supabase.storage.from('deposit_proofs').getPublicUrl(filePath);
+        proofImageUrl = publicUrlData.publicUrl;
+      }
+
+      const reference = form.paymentReference ? form.paymentReference.trim() : '';
 
       const { error: depositError } = await supabase
         .from('deposits')
@@ -192,7 +203,7 @@ const Deposit = () => {
           </div>
         </div>
 
-        {/* Telebirr payment info — prominent glass card */}
+        {/* Telebirr payment info */}
         <GlassCard className="p-5 mb-4 border border-amber-500/25 bg-gradient-to-br from-amber-500/10 to-transparent">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center">
@@ -200,7 +211,7 @@ const Deposit = () => {
             </div>
             <div>
               <p className="text-white font-semibold text-sm">Pay via Telebirr</p>
-              <p className="text-white/40 text-xs">Send payment to this account, then submit the transaction reference below</p>
+              <p className="text-white/40 text-xs">Send payment to this account, then submit the reference below</p>
             </div>
           </div>
           {telebirrNumber ? (
@@ -246,7 +257,7 @@ const Deposit = () => {
             className="flex items-center gap-2 px-5 py-2 rounded-lg bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:text-amber-400 transition-colors"
           >
             <MessageCircle size={18} className="text-amber-400" />
-            Having payment issues? Contact Support on Telegram
+            Having payment issues? Contact Support
           </a>
         </div>
 
@@ -336,7 +347,7 @@ const Deposit = () => {
                   onChange={handleChange}
                   className="glass-input"
                   accept="image/jpeg,image/png,image/webp,image/heic"
-                  required
+                  // Removed 'required' attribute so reference alone can be submitted
                 />
                 <p className="text-white/40 text-xs mt-1">Provide if you have a screenshot. Either this OR a reference is sufficient.</p>
               </div>
@@ -362,7 +373,7 @@ const Deposit = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || !form.proofImage || (!isRegistration && !form.targetVip)}
+                  disabled={!canSubmit} // Use the new canSubmit logic
                   className="btn-primary flex-1 flex items-center justify-center gap-2"
                 >
                   {loading ? (
