@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAdminStore } from '../../store/adminStore';
 import { useAuthStore } from '../../store/authStore';
-import { ArrowUpRight, Check, X, Loader2, Banknote } from 'lucide-react';
+import { ArrowUpRight, Check, X, Loader2, Banknote, ExternalLink } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import SkeletonLoader from '../../components/SkeletonLoader';
 
@@ -11,6 +11,8 @@ const AdminPayments = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [selectedDeposit, setSelectedDeposit] = useState(null);
+  
   const { settings } = useAdminStore();
   const { updateTotalDeposited, updateAccountStatus, updateVipLevel, incrementSuccessfulReferrals } = useAuthStore();
 
@@ -21,7 +23,6 @@ const AdminPayments = () => {
   const fetchPendingDeposits = async () => {
     setLoading(true);
     try {
-      console.log('[AdminPayments] Fetching pending deposits');
       const { data, error: fetchError } = await supabase
         .from('deposits')
         .select(`
@@ -39,7 +40,6 @@ const AdminPayments = () => {
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      console.log('[AdminPayments] Fetched pending deposits:', data);
       setPendingDeposits(data || []);
     } catch (err) {
       console.error('[AdminPayments] Error fetching pending deposits:', err);
@@ -49,21 +49,16 @@ const AdminPayments = () => {
     }
   };
 
-const approveDeposit = async (depositId) => {
+  const approveDeposit = async (depositId) => {
     setLoading(true);
     try {
-      console.log('[AdminPayments] Approving deposit ID:', depositId);
       // 1. Update deposit status to approved
       const { error: updateError } = await supabase
         .from('deposits')
         .update({ status: 'approved', updated_at: new Date().toISOString() })
         .eq('id', depositId);
 
-      if (updateError) {
-        console.error('[AdminPayments] Error updating deposit status:', updateError);
-        throw updateError;
-      }
-      console.log('[AdminPayments] Deposit status updated to approved');
+      if (updateError) throw updateError;
 
       // 2. Get deposit details to process
       const { data: depositData, error: depositError } = await supabase
@@ -86,64 +81,43 @@ const approveDeposit = async (depositId) => {
         .eq('id', depositId)
         .single();
 
-      if (depositError) {
-        console.error('[AdminPayments] Error fetching deposit data:', depositError);
-        throw depositError;
-      }
-      console.log('[AdminPayments] Deposit data fetched:', depositData);
+      if (depositError) throw depositError;
 
       const deposit = depositData;
       const profile = deposit.profiles;
 
-      if (!profile) {
-        throw new Error('Profile not found for deposit');
-      }
-      console.log('[AdminPayments] Profile:', profile);
+      if (!profile) throw new Error('Profile not found for deposit');
 
-      // 3. Update account status to active (if not already)
+      // 3. Update account status to active
       if (profile.account_status !== 'active') {
-        console.log('[AdminPayments] Updating account status to active');
         const { error: accountStatusError } = await supabase
           .from('profiles')
           .update({ account_status: 'active' })
           .eq('id', profile.id);
 
-        if (accountStatusError) {
-          console.error('[AdminPayments] Error updating account status:', accountStatusError);
-          throw accountStatusError;
-        }
-        console.log('[AdminPayments] Account status updated to active');
+        if (accountStatusError) throw accountStatusError;
       }
 
-      // 4. Increment the referrer's successful_referrals by 1
-      //    The database trigger will automatically handle the VIP upgrade
-      //    based on the new referral count.
+      // 4. Increment referrer's successful_referrals
       if (profile.referred_by) {
-        console.log('[AdminPayments] User was referred by:', profile.referred_by);
         const { error: referrerError } = await supabase.rpc('increment_successful_referrals', { uid: profile.referred_by });
-
-        if (referrerError) {
-          console.error('[AdminPayments] Error updating referrer successful_referrals:', referrerError);
-          throw referrerError;
-        }
-        console.log('[AdminPayments] Referrer successful_referrals incremented - VIP upgrade handled by trigger');
+        if (referrerError) throw referrerError;
       }
 
-      // 5. Refresh the list
-      console.log('[AdminPayments] Refreshing pending deposits list');
       await fetchPendingDeposits();
-
       setSuccess('Deposit approved successfully.');
-      console.log('[AdminPayments] Deposit approved successfully');
+      setTimeout(() => setSuccess(''), 3000);
+      
     } catch (err) {
       console.error('[AdminPayments] Error approving deposit:', err);
       setError(err.message || 'Failed to approve deposit');
+      setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
+      setSelectedDeposit(null); // Close modal if open
     }
   };
 
-  
   const handleDecline = async (depositId) => {
     setLoading(true);
     try {
@@ -151,32 +125,29 @@ const approveDeposit = async (depositId) => {
         .from('deposits')
         .update({ status: 'rejected', updated_at: new Date().toISOString() })
         .eq('id', depositId);
+        
       if (updateError) throw updateError;
-      setLoading(false);
-      fetchPendingDeposits();
+      
+      await fetchPendingDeposits();
       setSuccess('Deposit declined successfully.');
+      setTimeout(() => setSuccess(''), 3000);
+      
     } catch (err) {
       console.error('[AdminPayments] Error declining deposit:', err);
       setError('Failed to decline deposit');
+      setTimeout(() => setError(''), 3000);
+    } finally {
       setLoading(false);
+      setSelectedDeposit(null); // Close modal if open
     }
   };
 
-if (loading) {
+  if (loading && pendingDeposits.length === 0) {
     return (
       <GlassCard className="text-center py-12">
         <div className="space-y-3">
           {[...Array(2)].map((_, i) => <SkeletonLoader key={i} className="h-20 w-full rounded-xl" />)}
         </div>
-      </GlassCard>
-    );
-  }
-
-  if (pendingDeposits.length === 0) {
-    return (
-      <GlassCard className="text-center py-12">
-        <Banknote size={40} className="text-white/20 mx-auto mb-3" />
-        <p className="text-white/40">No pending deposit requests.</p>
       </GlassCard>
     );
   }
@@ -199,76 +170,152 @@ if (loading) {
         </div>
       </div>
 
-      <div className="space-y-3">
-        {pendingDeposits.map((deposit) => (
-          <GlassCard key={deposit.id} className="border border-white/20">
-            <div className="flex items-center justify-between p-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-white/90 text-sm font-medium">Deposit ID: {deposit.id}</p>
-                <p className="text-white/70 text-xs">
-                  User: {deposit.profiles?.full_name || 'Unknown'} ({deposit.profiles?.phone || 'N/A'})
-                </p>
-<p className="text-white/70 text-xs mt-1">
-                Amount: {parseFloat(deposit.amount).toFixed(2)} ETB • Method: {deposit.payment_method}
-              </p>
-              {deposit.target_vip && (
-                <p className="text-amber-400 text-xs mt-1">
-                  Target VIP: {deposit.target_vip}
-                  {deposit.payment_reference && (
-                    ` • Paid: ${parseFloat(deposit.amount).toFixed(2)} ETB (upgrade cost)`
-                  )}
-                </p>
-              )}
-              {deposit.payment_name && (
-                <p className="text-white/70 text-xs mt-1">
-                  Account: {deposit.payment_name}
-                </p>
-              )}
-              {deposit.payment_reference && (
-                <p className="text-white/70 text-xs mt-1">
-                  Payment Reference: {deposit.payment_reference}
-                </p>
-              )}
-              <p className="text-white/70 text-xs">
-                Transaction ID: {deposit.transaction_id}
-              </p>
-              {deposit.proof_image_url && (
-                <div className="mt-2">
-                  <button
-                    onClick={() => window.open(deposit.proof_image_url, '_blank')}
-                    className="text-amber-400 text-xs underline cursor-pointer"
-                  >
-                    View Proof
-                  </button>
-                  <p className="text-amber-400 text-xs mt-1">
-                    Proof image: {deposit.proof_image_url?.substring(0, 30)}${deposit.proof_image_url?.length > 30 ? '...' : ''}
+      {pendingDeposits.length === 0 ? (
+        <GlassCard className="text-center py-12">
+          <Banknote size={40} className="text-white/20 mx-auto mb-3" />
+          <p className="text-white/40">No pending deposit requests.</p>
+        </GlassCard>
+      ) : (
+        <div className="space-y-3">
+          {pendingDeposits.map((deposit) => (
+            <GlassCard key={deposit.id} className="border border-white/20 p-4">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                
+                {/* Deposit Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white/90 text-sm font-medium">Deposit ID: {deposit.id.split('-')[0]}...</p>
+                  <p className="text-white/70 text-xs mt-1">
+                    User: <span className="text-white font-semibold">{deposit.profiles?.full_name || 'Unknown'}</span> ({deposit.profiles?.phone || 'N/A'})
+                  </p>
+                  <p className="text-white/70 text-xs mt-1">
+                    Amount: <span className="text-amber-400 font-bold">{parseFloat(deposit.amount).toFixed(2)} ETB</span> • Method: {deposit.payment_method}
+                  </p>
+                  <p className="text-white/70 text-xs mt-1">
+                    Submitted: {new Date(deposit.created_at).toLocaleString()}
                   </p>
                 </div>
-              )}
-              <p className="text-white/70 text-xs">
-                Submitted: {new Date(deposit.created_at).toLocaleString()}
-              </p>
-              </div>
-              <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-2">
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                   <button
-                    onClick={() => approveDeposit(deposit.id)}
-                    className="btn-primary flex items-center justify-center gap-2 px-4 py-2 text-sm active:scale-95"
+                    onClick={() => setSelectedDeposit(deposit)}
+                    className="flex-1 md:flex-none px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-sm font-medium hover:bg-white/20 transition-all active:scale-95"
                   >
-                    Approve
+                    Details
                   </button>
                   <button
                     onClick={() => handleDecline(deposit.id)}
-                    className="btn-secondary flex items-center justify-center gap-2 px-4 py-2 text-sm active:scale-95"
+                    disabled={loading}
+                    className="flex-1 md:flex-none px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-sm font-medium hover:bg-red-500/30 transition-all active:scale-95"
                   >
                     Decline
                   </button>
+                  <button
+                    onClick={() => approveDeposit(deposit.id)}
+                    disabled={loading}
+                    className="flex-1 md:flex-none px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/30 transition-all active:scale-95 flex items-center justify-center gap-1"
+                  >
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve
+                  </button>
+                </div>
+
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+
+      {/* DETAILS MODAL */}
+      {selectedDeposit && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <GlassCard className="w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto fade-in-up">
+            {/* Close Button */}
+            <button 
+              onClick={() => setSelectedDeposit(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50 transition-colors active:scale-95"
+            >
+              <X size={18} />
+            </button>
+
+            <h3 className="text-white font-bold text-xl mb-4">Deposit Details</h3>
+
+            <div className="space-y-4">
+              {/* User Info */}
+              <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                <p className="text-white/40 text-xs uppercase tracking-wide mb-1">User Information</p>
+                <p className="text-white font-semibold">{selectedDeposit.profiles?.full_name || 'Unknown'}</p>
+                <p className="text-white/60 text-sm">{selectedDeposit.profiles?.phone || 'No phone'}</p>
+              </div>
+
+              {/* Deposit Info */}
+              <div className="bg-white/5 p-4 rounded-xl border border-white/10 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-white/40 text-xs uppercase tracking-wide mb-1">Amount</p>
+                  <p className="text-amber-400 font-bold text-lg">{parseFloat(selectedDeposit.amount).toFixed(2)} ETB</p>
+                </div>
+                <div>
+                  <p className="text-white/40 text-xs uppercase tracking-wide mb-1">Target VIP</p>
+                  <p className="text-white font-semibold">{selectedDeposit.target_vip || 'Basic'}</p>
+                </div>
+                <div>
+                  <p className="text-white/40 text-xs uppercase tracking-wide mb-1">Reference</p>
+                  <p className="text-white text-sm truncate">{selectedDeposit.payment_reference || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-white/40 text-xs uppercase tracking-wide mb-1">Transaction ID</p>
+                  <p className="text-white text-sm truncate">{selectedDeposit.transaction_id || 'N/A'}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-white/40 text-xs uppercase tracking-wide mb-1">Date Submitted</p>
+                  <p className="text-white text-sm">{new Date(selectedDeposit.created_at).toLocaleString()}</p>
                 </div>
               </div>
+
+              {/* Proof Image */}
+              <div>
+                <p className="text-white/40 text-xs uppercase tracking-wide mb-2">Payment Proof</p>
+                {selectedDeposit.proof_image_url ? (
+                  <a href={selectedDeposit.proof_image_url} target="_blank" rel="noopener noreferrer" className="block relative group">
+                    <img 
+                      src={selectedDeposit.proof_image_url} 
+                      alt="Payment Proof" 
+                      className="w-full h-auto max-h-72 object-contain rounded-xl border border-white/10 bg-black/50" 
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-xl transition-opacity">
+                      <span className="text-white text-sm font-medium flex items-center gap-1">
+                        Open Full Image <ExternalLink size={14} />
+                      </span>
+                    </div>
+                  </a>
+                ) : (
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center">
+                    <p className="text-white/40 text-sm">No image uploaded.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons in Modal */}
+            <div className="flex gap-3 mt-6 pt-4 border-t border-white/10">
+              <button 
+                onClick={() => handleDecline(selectedDeposit.id)}
+                disabled={loading}
+                className="flex-1 py-3 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 font-semibold hover:bg-red-500/30 transition-all active:scale-95"
+              >
+                Decline
+              </button>
+              <button 
+                onClick={() => approveDeposit(selectedDeposit.id)}
+                disabled={loading}
+                className="flex-1 py-3 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold hover:bg-emerald-500/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Approve
+              </button>
             </div>
           </GlassCard>
-        ))}
-      </div>
+        </div>
+      )}
+
     </div>
   );
 };
