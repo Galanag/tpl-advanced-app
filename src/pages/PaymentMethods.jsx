@@ -104,6 +104,7 @@ const PaymentMethods = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-white/50 text-sm block mb-1.5">Payment Method</label>
+            {/* Static div replaces the dropdown entirely */}
             <div className="glass-input bg-white/5 py-3 px-4 text-white/70 flex items-center gap-2 cursor-not-allowed">
               <Smartphone size={16} className="text-amber-400" /> Telebirr (Default)
             </div>
