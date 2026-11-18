@@ -108,7 +108,26 @@ export const useAuthStore = create(
         const { user } = get();
         if (!user) return;
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        set({ profile });
+        
+        // Reset daily videos watched if 24 hours have passed since last reset
+        const now = new Date();
+        const lastReset = new Date(profile?.last_quota_reset || now);
+        const hoursSinceReset = (now - lastReset) / (1000 * 60 * 60);
+        
+        let updatedProfile = profile;
+        if (hoursSinceReset >= 24) {
+          const { data: newProfile, error } = await supabase
+            .from('profiles')
+            .update({ daily_videos_watched: 0, last_quota_reset: now.toISOString() })
+            .eq('id', user.id)
+            .select()
+            .single();
+          if (!error && newProfile) {
+            updatedProfile = newProfile;
+          }
+        }
+        
+        set({ profile: updatedProfile });
       },
 
       // New methods for updating profile fields

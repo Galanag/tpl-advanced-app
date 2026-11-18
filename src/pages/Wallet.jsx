@@ -104,13 +104,14 @@ const Wallet = () => {
   // 3. Dynamic Referral Requirement Logic
   // ==========================================
   // Calculates how many referrals are needed to unlock withdrawal based on VIP level
+  // Calculates how many referrals are needed to unlock withdrawal based on VIP level
   const getReferralsRequired = (vipLevel) => {
     switch (vipLevel) {
       case 'Basic': return 5;
-      case 'VIP1': return 10;
-      case 'VIP2': return 15;
-      case 'VIP3': return 20;
-      case 'VIP4': return 25;
+      case 'VIP1': return 5;  // VIP1 unlocks at 5 referrals
+      case 'VIP2': return 10; // VIP2 unlocks at 10 referrals
+      case 'VIP3': return 15; // VIP3 unlocks at 15 referrals
+      case 'VIP4': return 20; // VIP4 unlocks at 20 referrals
       default: return 5;
     }
   };
