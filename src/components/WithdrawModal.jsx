@@ -102,16 +102,48 @@ const WithdrawModal = ({
       navigate('/team');
       return;
     }
-    
+
+    const link = `${window.location.origin}/auth?ref=${profile.referral_code}`;
+
     try {
-      const link = `${window.location.origin}/auth?ref=${profile.referral_code}`;
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      setCopyMsg('Link copied!');
-      setTimeout(() => { setCopied(false); setCopyMsg(''); }, 2000);
-    } catch {
-      setCopyMsg('Failed to copy');
-      setTimeout(() => setCopyMsg(''), 2000);
+      // Try modern API first (works on desktop and newer mobile browsers)
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(link);
+        setCopied(true);
+        setCopyMsg('Link copied!');
+        setTimeout(() => { setCopied(false); setCopyMsg(''); }, 2000);
+      } else {
+        throw new Error('Clipboard API not available');
+      }
+    } catch (err) {
+      // Fallback for older mobile browsers (iOS Safari)
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = link;
+        
+        // Make the textarea invisible
+        textArea.style.position = "absolute";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        
+        textArea.focus();
+        textArea.select();
+        
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        
+        if (successful) {
+          setCopied(true);
+          setCopyMsg('Link copied!');
+          setTimeout(() => { setCopied(false); setCopyMsg(''); }, 2000);
+        } else {
+          throw new Error('execCommand failed');
+        }
+      } catch (fallbackErr) {
+        setCopyMsg('Failed to copy. Please select the link manually.');
+        setTimeout(() => setCopyMsg(''), 3000);
+      }
     }
   };
 
