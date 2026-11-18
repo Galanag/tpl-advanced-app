@@ -50,8 +50,14 @@ const AdminWithdrawals = () => {
 
   const approveWithdrawal = async (withdrawalId) => {
     setLoading(true);
+    setError('');
+    setSuccess('');
     try {
+      // CRITICAL: Force session refresh to prevent mobile schema cache errors
+      await supabase.auth.refreshSession();
+      
       console.log('[AdminWithdrawals] Approving withdrawal ID:', withdrawalId);
+      
       // 1. Update withdrawal status to approved
       const { error: updateError } = await supabase
         .from('withdrawals')
@@ -64,19 +70,15 @@ const AdminWithdrawals = () => {
       }
       console.log('[AdminWithdrawals] Withdrawal status updated to approved');
 
-      // 2. Note: The assumption is that the amount was already deducted from the user's balance when the withdrawal was requested.
-      //    So we do not need to deduct again. If we needed to deduct, we would do it here.
-      //    However, the task says: "Assume it was already deducted".
-
-      // 3. Refresh the list
-      console.log('[AdminWithdrawals] Refreshing pending withdrawals list');
+      // 2. Refresh the list
       await fetchPendingWithdrawals();
 
       setSuccess('Withdrawal approved successfully.');
-      console.log('[AdminWithdrawals] Withdrawal approved successfully');
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       console.error('[AdminWithdrawals] Error approving withdrawal:', err);
       setError(err.message || 'Failed to approve withdrawal');
+      setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
     }
@@ -84,8 +86,14 @@ const AdminWithdrawals = () => {
 
   const rejectWithdrawal = async (withdrawalId) => {
     setLoading(true);
+    setError('');
+    setSuccess('');
     try {
+      // CRITICAL: Force session refresh to prevent mobile schema cache errors
+      await supabase.auth.refreshSession();
+
       console.log('[AdminWithdrawals] Rejecting withdrawal ID:', withdrawalId);
+      
       // 1. Get withdrawal details to refund the amount
       const { data: withdrawalData, error: withdrawalError } = await supabase
         .from('withdrawals')
@@ -99,18 +107,13 @@ const AdminWithdrawals = () => {
         .eq('id', withdrawalId)
         .single();
 
-      if (withdrawalError) {
-        console.error('[AdminWithdrawals] Error fetching withdrawal data:', withdrawalError);
-        throw withdrawalError;
-      }
+      if (withdrawalError) throw withdrawalError;
 
       const withdrawal = withdrawalData;
       const profile = withdrawal.profiles;
       const amount = parseFloat(withdrawal.amount);
 
-      if (!profile) {
-        throw new Error('Profile not found for withdrawal');
-      }
+      if (!profile) throw new Error('Profile not found for withdrawal');
 
       // 2. Update withdrawal status to rejected
       const { error: statusUpdateError } = await supabase
@@ -118,55 +121,37 @@ const AdminWithdrawals = () => {
         .update({ status: 'rejected', updated_at: new Date().toISOString() })
         .eq('id', withdrawalId);
 
-      if (statusUpdateError) {
-        console.error('[AdminWithdrawals] Error updating withdrawal status:', statusUpdateError);
-        throw statusUpdateError;
-      }
-      console.log('[AdminWithdrawals] Withdrawal status updated to rejected');
-
+      if (statusUpdateError) throw statusUpdateError;
+      
       // 3. Refund the amount back to the user's balance
       const newBalance = (parseFloat(profile.balance || 0) + amount).toFixed(2);
-      console.log('[AdminWithdrawals] Refunding amount. New balance:', newBalance);
       const { error: balanceUpdateError } = await supabase
         .from('profiles')
         .update({ balance: newBalance })
         .eq('id', profile.id);
 
-      if (balanceUpdateError) {
-        console.error('[AdminWithdrawals] Error updating balance:', balanceUpdateError);
-        throw balanceUpdateError;
-      }
-      console.log('[AdminWithdrawals] Balance updated after refund');
+      if (balanceUpdateError) throw balanceUpdateError;
 
       // 4. Refresh the list
-      console.log('[AdminWithdrawals] Refreshing pending withdrawals list');
       await fetchPendingWithdrawals();
 
       setSuccess('Withdrawal rejected and amount refunded.');
-      console.log('[AdminWithdrawals] Withdrawal rejected and amount refunded');
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       console.error('[AdminWithdrawals] Error rejecting withdrawal:', err);
       setError(err.message || 'Failed to reject withdrawal');
+      setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
+  if (loading && pendingWithdrawals.length === 0) {
     return (
       <GlassCard className="text-center py-12">
         <div className="space-y-3">
           {[...Array(2)].map((_, i) => <SkeletonLoader key={i} className="h-20 w-full rounded-xl" />)}
         </div>
-      </GlassCard>
-    );
-  }
-
-  if (pendingWithdrawals.length === 0) {
-    return (
-      <GlassCard className="text-center py-12">
-        <Banknote size={40} className="text-white/20 mx-auto mb-3" />
-        <p className="text-white/40">No pending withdrawal requests.</p>
       </GlassCard>
     );
   }
@@ -189,44 +174,52 @@ const AdminWithdrawals = () => {
         </div>
       </div>
 
-      <div className="space-y-3">
-        {pendingWithdrawals.map((withdrawal) => (
-          <GlassCard key={withdrawal.id} className="border border-white/20">
-            <div className="flex items-center justify-between p-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-white/90 text-sm font-medium">Withdrawal ID: {withdrawal.id}</p>
-                <p className="text-white/70 text-xs">
-                  User: {withdrawal.profiles?.full_name || 'Unknown'} ({withdrawal.profiles?.phone || 'N/A'})
-                </p>
-                <p className="text-white/70 text-xs mt-1">
-                  Amount: {parseFloat(withdrawal.amount).toFixed(2)} ETB
-                </p>
-                <p className="text-white/70 text-xs">
-                  Payment Method: {withdrawal.profiles?.payment_method || 'N/A'} • 
-                  Account: {withdrawal.profiles?.payment_account_name || 'N/A'} ({withdrawal.profiles?.payment_account_number || 'N/A'})
-                </p>
-                <p className="text-white/70 text-xs">
-                  Requested: {new Date(withdrawal.created_at).toLocaleString()}
-                </p>
+      {pendingWithdrawals.length === 0 ? (
+        <GlassCard className="text-center py-12">
+          <Banknote size={40} className="text-white/20 mx-auto mb-3" />
+          <p className="text-white/40">No pending withdrawal requests.</p>
+        </GlassCard>
+      ) : (
+        <div className="space-y-3">
+          {pendingWithdrawals.map((withdrawal) => (
+            <GlassCard key={withdrawal.id} className="border border-white/20">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-white/90 text-sm font-medium">Withdrawal ID: {withdrawal.id.split('-')[0]}...</p>
+                  <p className="text-white/70 text-xs mt-1">
+                    User: <span className="text-white font-semibold">{withdrawal.profiles?.full_name || 'Unknown'}</span> ({withdrawal.profiles?.phone || 'N/A'})
+                  </p>
+                  <p className="text-white/70 text-xs mt-1">
+                    Amount: <span className="text-amber-400 font-bold">{parseFloat(withdrawal.amount).toFixed(2)} ETB</span>
+                  </p>
+                  <p className="text-white/70 text-xs mt-1">
+                    Method: {withdrawal.profiles?.payment_method || 'Telebirr'} • Account: {withdrawal.profiles?.payment_account_name || 'N/A'} ({withdrawal.profiles?.payment_account_number || 'N/A'})
+                  </p>
+                  <p className="text-white/70 text-xs mt-1">
+                    Requested: {new Date(withdrawal.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+                  <button
+                    onClick={() => rejectWithdrawal(withdrawal.id)}
+                    disabled={loading}
+                    className="flex-1 md:flex-none px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-sm font-medium hover:bg-red-500/30 transition-all active:scale-95 flex items-center justify-center gap-1"
+                  >
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />} Reject
+                  </button>
+                  <button
+                    onClick={() => approveWithdrawal(withdrawal.id)}
+                    disabled={loading}
+                    className="flex-1 md:flex-none px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-sm font-medium hover:bg-emerald-500/30 transition-all active:scale-95 flex items-center justify-center gap-1"
+                  >
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => approveWithdrawal(withdrawal.id)}
-                  className="btn-primary flex items-center justify-center gap-2 px-4 py-2 text-sm active:scale-95"
-                >
-                  Approve
-                </button>
-                <button
-                  onClick={() => rejectWithdrawal(withdrawal.id)}
-                  className="btn-secondary flex items-center justify-center gap-2 px-4 py-2 text-sm active:scale-95"
-                >
-                  Reject
-                </button>
-              </div>
-            </div>
-          </GlassCard>
-        ))}
-      </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

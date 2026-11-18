@@ -22,6 +22,8 @@ const AdminPayments = () => {
 
   const fetchPendingDeposits = async () => {
     setLoading(true);
+    // Force a session refresh to prevent schema cache errors
+    await supabase.auth.refreshSession();
     try {
       const { data, error: fetchError } = await supabase
         .from('deposits')
@@ -51,6 +53,8 @@ const AdminPayments = () => {
 
   const approveDeposit = async (depositId) => {
     setLoading(true);
+    // Force a session refresh to prevent schema cache errors
+    await supabase.auth.refreshSession();
     try {
       // 1. Update deposit status to approved
       const { error: updateError } = await supabase
@@ -120,6 +124,8 @@ const AdminPayments = () => {
 
   const handleDecline = async (depositId) => {
     setLoading(true);
+    // Force a session refresh to prevent schema cache errors
+    await supabase.auth.refreshSession();
     try {
       const { error: updateError } = await supabase
         .from('deposits')
