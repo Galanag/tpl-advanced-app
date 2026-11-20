@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Video, Users, Settings, ArrowLeft, CreditCard, Banknote } from 'lucide-react';
+import { LayoutDashboard, Video, Users, Settings, ArrowLeft, CreditCard, Banknote, Archive } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAdminStore } from '../../store/adminStore';
 import AdminVideos from './AdminVideos';
@@ -8,6 +8,7 @@ import AdminUsers from './AdminUsers';
 import AdminSettings from './AdminSettings';
 import AdminPayments from './AdminPayments';
 import AdminWithdrawals from './AdminWithdrawals';
+import AdminArchived from './AdminArchived';
 import GlassCard from '../../components/GlassCard';
 
 const TABS = [
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'payments', label: 'Payments', icon: CreditCard },
   { id: 'withdrawals', label: 'Withdrawals', icon: Banknote },
+  { id: 'archived', label: 'Archived Users', icon: Archive },
 ];
 
 const AdminDashboard = () => {
@@ -38,7 +40,8 @@ const AdminDashboard = () => {
       const { count, error } = await supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
-        .eq('account_status', 'active');
+        .eq('account_status', 'active')
+        .eq('is_archived', false);
       if (error) throw error;
       setActiveUsersCount(count || 0);
     } catch (err) {
@@ -50,7 +53,7 @@ const AdminDashboard = () => {
 
   const fetchPendingWithdrawalsCount = async () => {
     try {
-      const { data, error, count } = await supabase
+      const { count, error } = await supabase
         .from('withdrawals')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'pending');
@@ -137,6 +140,7 @@ const AdminDashboard = () => {
            {activeTab === 'settings' && <AdminSettings />}
            {activeTab === 'payments' && <AdminPayments />}
            {activeTab === 'withdrawals' && <AdminWithdrawals />}
+           {activeTab === 'archived' && <AdminArchived />}
          </div>
       </div>
     </div>
