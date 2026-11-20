@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom'; // IMPORT PORTAL
 import { Search, Users, UserCheck, UserX, CheckCircle2, Loader2, Banknote, X, Edit, Archive, Filter, Calendar } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';
 import { supabase } from '../../lib/supabase';
@@ -12,10 +13,8 @@ const STATUS_COLORS = {
 };
 
 const AdminUsers = () => {
-  // Store actions (keep existing logic)
   const { activateUser, suspendUser } = useAdminStore();
 
-  // Local state for filtered users to allow complex querying without breaking the store
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -37,9 +36,7 @@ const AdminUsers = () => {
 
   const isMountedRef = useRef(true);
 
-  // ==========================================
   // 1. Fetch Financial Data
-  // ==========================================
   const fetchFinancialData = useCallback(async () => {
     try {
       const [
@@ -85,9 +82,7 @@ const AdminUsers = () => {
     }
   }, []);
 
-  // ==========================================
   // 2. Fetch Filtered Users
-  // ==========================================
   const fetchFilteredUsers = useCallback(async () => {
     setLoading(true);
     try {
@@ -101,7 +96,6 @@ const AdminUsers = () => {
       }
       
       if (filterDate) {
-        // If a date is selected, filter users created on or after that date
         query = query.gte('created_at', filterDate);
       }
 
@@ -115,7 +109,6 @@ const AdminUsers = () => {
       
       if (isMountedRef.current) {
         setUsers(data || []);
-        // Clear selections when filters change to prevent invisible selections
         setSelectedUsers([]); 
       }
     } catch (err) {
@@ -125,14 +118,12 @@ const AdminUsers = () => {
     }
   }, [filterStatus, filterDate, search]);
 
-  // Initial Load
   useEffect(() => {
     isMountedRef.current = true;
     fetchFinancialData();
     return () => { isMountedRef.current = false; };
   }, [fetchFinancialData]);
 
-  // Debounced fetch on filter/search change
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchFilteredUsers();
@@ -140,14 +131,11 @@ const AdminUsers = () => {
     return () => clearTimeout(timer);
   }, [fetchFilteredUsers]);
 
-  // ==========================================
-  // 3. Actions (Activate, Suspend, Edit)
-  // ==========================================
   const handleActivate = async (userId) => {
     setActivating(userId);
     try { 
       await activateUser(userId); 
-      fetchFilteredUsers(); // Refresh local view
+      fetchFilteredUsers(); 
     } finally { 
       setActivating(null); 
     }
@@ -196,9 +184,6 @@ const AdminUsers = () => {
     }
   };
 
-  // ==========================================
-  // 4. Bulk Actions & Archiving
-  // ==========================================
   const toggleSelect = (id) => {
     setSelectedUsers(prev => 
       prev.includes(id) ? prev.filter(u => u !== id) : [...prev, id]
@@ -220,7 +205,7 @@ const AdminUsers = () => {
 
   const handleArchiveSelected = async () => {
     if (selectedUsers.length === 0) return alert("No users selected");
-    if (!window.confirm(`Are you sure you want to archive ${selectedUsers.length} user(s)? They will be moved to the Archived tab.`)) return;
+    if (!window.confirm(`Are you sure you want to archive ${selectedUsers.length} user(s)?`)) return;
 
     setBulkLoading(true);
     try {
@@ -331,7 +316,6 @@ const AdminUsers = () => {
             return (
               <GlassCard key={user.id} className={`p-4 flex flex-col md:flex-row items-start md:items-center gap-3 transition-colors ${isSelected ? 'border-amber-500/50 bg-amber-500/5' : ''}`}>
                 
-                {/* Checkbox */}
                 <div className="flex items-center h-full pt-1 md:pt-0">
                   <input 
                     type="checkbox" 
@@ -341,7 +325,6 @@ const AdminUsers = () => {
                   />
                 </div>
 
-                {/* User Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-white/90 text-sm font-medium truncate">{user.full_name || 'Unnamed'}</p>
@@ -355,7 +338,6 @@ const AdminUsers = () => {
                   <p className="text-white/40 text-xs mt-1">{user.phone}</p>
                 </div>
 
-                {/* Financials */}
                 <div className="hidden lg:flex items-center gap-6 text-xs text-white/60 shrink-0">
                   <div className="text-right">
                     <p className="text-white/30">Balance</p>
@@ -371,7 +353,6 @@ const AdminUsers = () => {
                   </div>
                 </div>
 
-                {/* Actions */}
                 <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0 mt-3 md:mt-0">
                   {user.account_status === 'pending' && (
                     <button onClick={() => handleActivate(user.id)} disabled={activating === user.id} className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-medium hover:bg-emerald-500/25 flex items-center gap-1">
@@ -404,9 +385,9 @@ const AdminUsers = () => {
         </div>
       )}
 
-      {/* User Details Modal */}
-      {viewDetailsUser && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80">
+      {/* PORTAL 1: User Details Modal */}
+      {viewDetailsUser && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <GlassCard className="w-full max-w-2xl p-6 relative fade-in-up max-h-[90vh] overflow-y-auto">
             <button onClick={() => setViewDetailsUser(null)} className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50">
               <X size={18} />
@@ -419,58 +400,59 @@ const AdminUsers = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-white/50 text-semibold">VIP Level</p>
+                  <p className="text-white/50 text-sm font-medium">VIP Level</p>
                   <p className="text-white font-semibold text-lg">{viewDetailsUser.vip_level || 'Basic'}</p>
                 </div>
                 <div>
-                  <p className="text-white/50 text-semibold">Account Status</p>
+                  <p className="text-white/50 text-sm font-medium">Account Status</p>
                   <p className="text-white font-semibold text-lg capitalize">{viewDetailsUser.account_status}</p>
                 </div>
                 <div>
-                  <p className="text-white/50 text-semibold">Available Balance</p>
+                  <p className="text-white/50 text-sm font-medium">Available Balance</p>
                   <p className="text-white font-semibold text-lg">
                     {(parseFloat(viewDetailsUser.balance) || 0).toFixed(2)} ETB
                   </p>
                 </div>
                 <div>
-                  <p className="text-white/50 text-semibold">Total Deposits (Approved)</p>
+                  <p className="text-white/50 text-sm font-medium">Total Deposits (Approved)</p>
                   <p className="text-white font-semibold text-lg">
                     {(financialData[viewDetailsUser.id]?.deposits || 0).toFixed(2)} ETB
                   </p>
                 </div>
                 <div>
-                  <p className="text-white/50 text-semibold">Total Withdrawn</p>
+                  <p className="text-white/50 text-sm font-medium">Total Withdrawn</p>
                   <p className="text-white font-semibold text-lg">
                     {(financialData[viewDetailsUser.id]?.withdrawn || 0).toFixed(2)} ETB
                   </p>
                 </div>
                 <div>
-                  <p className="text-white/50 text-semibold">Total Earnings (Commissions)</p>
+                  <p className="text-white/50 text-sm font-medium">Total Earnings</p>
                   <p className="text-white font-semibold text-lg">
                     {(financialData[viewDetailsUser.id]?.commissions || 0).toFixed(2)} ETB
                   </p>
                 </div>
                 <div>
-                  <p className="text-white/50 text-semibold">Payment Method</p>
+                  <p className="text-white/50 text-sm font-medium">Payment Method</p>
                   <p className="text-white font-semibold text-lg">{viewDetailsUser.payment_method || 'Not set'}</p>
                 </div>
                 <div>
-                  <p className="text-white/50 text-semibold">Account Name</p>
+                  <p className="text-white/50 text-sm font-medium">Account Name</p>
                   <p className="text-white font-semibold text-lg">{viewDetailsUser.payment_account_name || 'Not set'}</p>
                 </div>
                 <div>
-                  <p className="text-white/50 text-semibold">Account Number</p>
+                  <p className="text-white/50 text-sm font-medium">Account Number</p>
                   <p className="text-white font-semibold text-lg">{viewDetailsUser.payment_account_number || 'Not set'}</p>
                 </div>
               </div>
             </div>
           </GlassCard>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Edit User Modal */}
-      {editUser && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80">
+      {/* PORTAL 2: Edit User Modal */}
+      {editUser && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <GlassCard className="w-full max-w-2xl p-6 relative fade-in-up max-h-[90vh] overflow-y-auto">
             <button onClick={() => setEditUser(null)} className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50">
               <X size={18} />
@@ -549,7 +531,8 @@ const AdminUsers = () => {
               </div>
             </form>
           </GlassCard>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
