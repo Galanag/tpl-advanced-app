@@ -15,37 +15,49 @@ import WithdrawModal from '../components/WithdrawModal';
 import { useNavigate } from 'react-router-dom';
 
 const Wallet = () => {
-  // --- Global Auth State ---
+  // ==========================================
+  // 1. Global Auth & Navigation State
+  // ==========================================
   const profile = useAuthStore((s) => s.profile);
   const user = useAuthStore((s) => s.user);
   const refreshProfile = useAuthStore((s) => s.refreshProfile);
   const navigate = useNavigate();
   
-  // --- Financial Metrics State ---
+  // ==========================================
+  // 2. Financial Metrics State
+  // ==========================================
   const [availableBalance, setAvailableBalance] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [totalApprovedDeposits, setTotalApprovedDeposits] = useState(0);
   const [pendingWithdrawalsAmount, setPendingWithdrawalsAmount] = useState(0);
   const [totalWithdrawn, setTotalWithdrawn] = useState(0);
   
-  // --- Transaction History State ---
+  // ==========================================
+  // 3. Transaction History State
+  // ==========================================
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // --- Modal & UI States ---
+  // ==========================================
+  // 4. Modal & UI States
+  // ==========================================
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [message, setMessage] = useState(null);
   
-  // --- Withdrawal Limits & Fresh Data ---
-  // Hardcoding 3000 as requested, removing the DB fetch for this to prevent bugs.
+  // ==========================================
+  // 5. Withdrawal Limits & Fresh Data
+  // ==========================================
   const [withdrawalMinimum] = useState(3000); 
   const [freshProfile, setFreshProfile] = useState(profile);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeReferralsCount, setActiveReferralsCount] = useState(0);
-  const [withdrawalCount, setWithdrawalCount] = useState(0);
+  
+  // NEW: We need the TOTAL AMOUNT of all past withdrawals (pending, approved, completed)
+  // to accurately calculate the required referrals (1 block of 3000 = 5 referrals)
+  const [totalWithdrawnToDate, setTotalWithdrawnToDate] = useState(0);
 
   // ==========================================
-  // 1. Fetch Fresh Profile Data
+  // EFFECT 1: Fetch Fresh Profile Data
   // ==========================================
   useEffect(() => {
     if (!user?.id) return;
@@ -74,7 +86,7 @@ const Wallet = () => {
   }, [user?.id, showWithdraw]);
 
   // ==========================================
-  // 2. Fetch Exact Active Referrals Count
+  // EFFECT 2: Fetch Exact Active Referrals Count
   // ==========================================
   useEffect(() => {
     if (!user?.id) return;
@@ -98,29 +110,38 @@ const Wallet = () => {
     fetchActiveReferralsCount();
   }, [user?.id, showWithdraw]);
 
+  // ==========================================
+  // EFFECT 3: Fetch Total Withdrawn Amount (Anti-Exploit)
+  // ==========================================
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const fetchTotalWithdrawn = async () => {
+      try {
+        // We sum up ALL withdrawals (pending, approved, completed) to calculate total volume
+        const { data, error } = await supabase
+          .from('withdrawals')
+          .select('amount')
+          .eq('user_id', user.id)
+          .in('status', ['pending', 'approved', 'completed']);
+        
+        if (!error && data) {
+          const sum = data.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
+          setTotalWithdrawnToDate(sum);
+        }
+      } catch (err) {
+        console.error('Error summing total withdrawals:', err);
+      }
+    };
+    
+    fetchTotalWithdrawn();
+  }, [user?.id, showWithdraw]);
+
   const freshBalance = parseFloat(freshProfile?.balance) || 0;
   const freshPaymentMethod = freshProfile?.payment_account_number || profile?.payment_account_number;
 
   // ==========================================
-  // 3. Dynamic Referral Requirement Logic
-  // ==========================================
-  // Calculates how many referrals are needed to unlock withdrawal based on VIP level
-  // Calculates how many referrals are needed to unlock withdrawal based on VIP level
-  const getReferralsRequired = (vipLevel) => {
-    switch (vipLevel) {
-      case 'Basic': return 5;
-      case 'VIP1': return 5;  // VIP1 unlocks at 5 referrals
-      case 'VIP2': return 10; // VIP2 unlocks at 10 referrals
-      case 'VIP3': return 15; // VIP3 unlocks at 15 referrals
-      case 'VIP4': return 20; // VIP4 unlocks at 20 referrals
-      default: return 5;
-    }
-  };
-
-  const requiredReferrals = getReferralsRequired(freshProfile?.vip_level || 'Basic');
-  
-  // ==========================================
-  // 4. Fetch Financial Metrics & Transactions
+  // EFFECT 4: Fetch Financial Metrics & Transactions
   // ==========================================
   useEffect(() => {
     fetchFinancialMetrics();
@@ -212,7 +233,7 @@ const Wallet = () => {
         <p className="text-white/50 text-sm mt-0.5">Manage your earnings and withdrawals</p>
       </div>
       
-      {/* Financial Metrics Cards */}
+      {/* FINANCIAL METRICS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <GlassCard className="p-4">
           <h3 className="text-white font-semibold mb-2">Available Balance</h3>
@@ -255,7 +276,7 @@ const Wallet = () => {
         </GlassCard>
       </div>
       
-      {/* Action Buttons Card */}
+      {/* ACTION BUTTONS CARD */}
       <GlassCard className="relative overflow-hidden">
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl -ml-10 -mb-10" />
         <div className="relative flex items-center justify-between">
@@ -305,6 +326,7 @@ const Wallet = () => {
         }`}>{message.text}</div>
       )}
       
+      {/* WITHDRAW MODAL */}
       {showWithdraw && (
         <WithdrawModal
           balance={freshBalance}
@@ -312,8 +334,8 @@ const Wallet = () => {
           profile={freshProfile}
           refreshProfile={refreshProfile}
           withdrawalMinimum={withdrawalMinimum}
-          requiredReferrals={requiredReferrals}
           successfulReferrals={activeReferralsCount}
+          totalWithdrawnToDate={totalWithdrawnToDate} // Pass the total amount to the modal
           onClose={() => setShowWithdraw(false)}
           onSuccess={(text) => { 
             setMessage({ type: 'success', text }); 
@@ -324,7 +346,7 @@ const Wallet = () => {
         />
       )}
       
-      {/* Transaction History */}
+      {/* TRANSACTION HISTORY */}
       <div>
         <h3 className="text-white font-semibold mb-3">Transaction History</h3>
         {loading ? (

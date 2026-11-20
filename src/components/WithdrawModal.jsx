@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, X, AlertTriangle, Copy, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
@@ -10,37 +10,47 @@ const WithdrawModal = ({
   profile, 
   refreshProfile, 
   withdrawalMinimum, 
-  requiredReferrals, 
   successfulReferrals, 
+  totalWithdrawnToDate, // e.g., if they withdrew 3000 before, this is 3000
   onClose, 
   onSuccess 
 }) => {
   const navigate = useNavigate();
   
-  // --- State ---
+  // ==========================================
+  // 1. Core State
+  // ==========================================
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   
-  // --- Referral Gate State ---
+  // ==========================================
+  // 2. Referral Gate State
+  // ==========================================
   const [showReferralGate, setShowReferralGate] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyMsg, setCopyMsg] = useState('');
 
   const minWithdrawal = withdrawalMinimum || 3000;
 
-  // Build the referral link safely
-  let referralLink = null;
-  let initialCopyMsg = '';
-  if (!profile?.referral_code) {
-    initialCopyMsg = 'Generating code... please refresh.';
-  } else {
-    referralLink = `${window.location.origin}/auth?ref=${profile.referral_code}`;
-  }
+  // ==========================================
+  // 3. Live Calculation of Required Referrals
+  // ==========================================
+  // Formula: Each block of 3000 ETB requires 5 referrals.
+  // If they withdrew 3000 before, and try to withdraw 6000 now, total = 9000.
+  // 9000 / 3000 = 3 blocks. 3 * 5 = 15 referrals needed.
+  const calculateRequiredRefs = (enteredAmount) => {
+    const amt = parseFloat(enteredAmount) || 0;
+    const targetTotal = totalWithdrawnToDate + amt;
+    const blocksOf3000 = Math.ceil(targetTotal / 3000);
+    return blocksOf3000 * 5;
+  };
+
+  const currentRequiredRefs = calculateRequiredRefs(amount);
 
   // ==========================================
-  // Main Withdrawal Submission Logic
+  // 4. Main Withdrawal Submission Logic
   // ==========================================
   const handleWithdraw = async (e) => {
     e.preventDefault();
@@ -59,8 +69,8 @@ const WithdrawModal = ({
     // 3. Sufficient Balance Check
     if (amt > balance) return setError('Insufficient balance');
 
-    // 4. Referral Gate Check
-    if (successfulReferrals < requiredReferrals) {
+    // 4. Dynamic Referral Gate Check
+    if (successfulReferrals < currentRequiredRefs) {
       setShowReferralGate(true);
       return;
     }
@@ -94,7 +104,7 @@ const WithdrawModal = ({
   };
 
   // ==========================================
-  // Copy Referral Link Logic
+  // 5. Copy Referral Link Logic (with Mobile Fallback)
   // ==========================================
   const copyReferral = async () => {
     if (!profile?.referral_code) {
@@ -106,7 +116,6 @@ const WithdrawModal = ({
     const link = `${window.location.origin}/auth?ref=${profile.referral_code}`;
 
     try {
-      // Try modern API first (works on desktop and newer mobile browsers)
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(link);
         setCopied(true);
@@ -116,20 +125,15 @@ const WithdrawModal = ({
         throw new Error('Clipboard API not available');
       }
     } catch (err) {
-      // Fallback for older mobile browsers (iOS Safari)
       try {
         const textArea = document.createElement("textarea");
         textArea.value = link;
-        
-        // Make the textarea invisible
         textArea.style.position = "absolute";
         textArea.style.left = "-999999px";
         textArea.style.top = "-999999px";
         document.body.appendChild(textArea);
-        
         textArea.focus();
         textArea.select();
-        
         const successful = document.execCommand('copy');
         document.body.removeChild(textArea);
         
@@ -149,7 +153,14 @@ const WithdrawModal = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="glass-card w-full max-w-md p-6 fade-in-up">
+      <div className="glass-card w-full max-w-md p-6 fade-in-up relative">
+        <button 
+          onClick={onClose} 
+          className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+        >
+          <X size={20} />
+        </button>
+        
         <h3 className="text-white font-bold text-lg mb-4">Withdraw Funds</h3>
         
         <form onSubmit={handleWithdraw} className="space-y-4">
@@ -165,6 +176,17 @@ const WithdrawModal = ({
               className="glass-input"
               placeholder={`Min ${minWithdrawal} ETB`}
             />
+            {/* Live Referral Requirement Indicator */}
+            {amount >= minWithdrawal && (
+              <div className="mt-2 text-xs flex items-center justify-between">
+                <span className="text-white/50">
+                  This withdrawal requires: <strong className="text-amber-400">{currentRequiredRefs} referrals</strong>
+                </span>
+                <span className={successfulReferrals >= currentRequiredRefs ? 'text-emerald-400' : 'text-red-400'}>
+                  You have: {successfulReferrals}
+                </span>
+              </div>
+            )}
           </div>
           
           {/* Phone Input */}
@@ -199,7 +221,9 @@ const WithdrawModal = ({
         </form>
       </div>
 
-      {/* Referral Gate Modal */}
+      {/* ==========================================
+          REFERRAL GATE MODAL (Dynamic Messaging)
+          ========================================== */}
       {showReferralGate && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80">
           <GlassCard className="w-full max-w-sm p-6 text-center fade-in-up">
@@ -209,8 +233,12 @@ const WithdrawModal = ({
             
             <h4 className="text-white font-bold text-lg mb-2">Withdrawal Locked</h4>
             
-            <p className="text-white/60 text-sm mb-5">
-              To withdraw your {amount} ETB, you must invite {requiredReferrals} friends who have paid the registration fee. You currently have {successfulReferrals} active referrals.
+            <p className="text-white/60 text-sm mb-5 leading-relaxed">
+              To withdraw <strong className="text-white">{amount} ETB</strong>, you must have a total of <strong className="text-amber-400">{currentRequiredRefs}</strong> active referrals. 
+              <br/><br/>
+              (This is based on your total withdrawal amount of <strong>{(totalWithdrawnToDate + parseFloat(amount || 0)).toFixed(2)} ETB</strong>).
+              <br/><br/>
+              You currently have <strong className="text-white">{successfulReferrals}</strong> active referrals.
             </p>
             
             <div className="flex gap-3">
