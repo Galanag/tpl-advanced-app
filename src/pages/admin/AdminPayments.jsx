@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // IMPORT PORTAL TO FIX OVERLAP
 import { supabase } from '../../lib/supabase';
 import { useAdminStore } from '../../store/adminStore';
 import { useAuthStore } from '../../store/authStore';
@@ -92,7 +93,7 @@ const AdminPayments = () => {
         if (referrerError) throw referrerError;
       }
 
-      // 5. INSERT NOTIFICATION
+      // 5. INSERT NOTIFICATION FOR USER
       await supabase.from('notifications').insert({
         user_id: profile.id,
         title: 'Deposit Approved',
@@ -124,7 +125,7 @@ const AdminPayments = () => {
         
       if (updateError) throw updateError;
       
-      // INSERT NOTIFICATION
+      // INSERT NOTIFICATION FOR USER
       const { data: depositData } = await supabase.from('deposits').select('user_id, amount').eq('id', depositId).single();
       if (depositData) {
         await supabase.from('notifications').insert({
@@ -193,7 +194,7 @@ const AdminPayments = () => {
                     <p className="text-white/90 text-sm font-medium">Deposit ID: {deposit.id.split('-')[0]}...</p>
                     {deposit.is_flagged && (
                       <span className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded-full border border-red-500/30 flex items-center gap-1">
-                        <AlertTriangle size={10} /> Duplicate Detected
+                        <AlertTriangle size={10} /> Duplicate Reference Detected
                       </span>
                     )}
                   </div>
@@ -241,10 +242,10 @@ const AdminPayments = () => {
         </div>
       )}
 
-      {/* DETAILS MODAL */}
-      {selectedDeposit && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <GlassCard className="w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto fade-in-up">
+      {/* DETAILS MODAL - Wrapped in createPortal to fix the overlap bug */}
+      {selectedDeposit && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto bg-[#0f172a] rounded-2xl border border-white/10 shadow-2xl fade-in-up">
             {/* Close Button */}
             <button 
               onClick={() => setSelectedDeposit(null)}
@@ -255,13 +256,13 @@ const AdminPayments = () => {
 
             <h3 className="text-white font-bold text-xl mb-4">Deposit Details</h3>
 
-            {/* FRAUD WARNING IN MODAL */}
+            {/* FRAUD WARNING IN MODAL (Fixed text) */}
             {selectedDeposit.is_flagged && (
               <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2">
                 <AlertTriangle size={16} className="text-red-400 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-red-400 text-sm font-bold">Fraud Warning</p>
-                  <p className="text-red-400/80 text-xs">This payment reference or image hash has been used in a previous deposit. Please verify carefully.</p>
+                  <p className="text-red-400/80 text-xs">This payment reference has been used in a previous deposit. Please verify carefully.</p>
                 </div>
               </div>
             )}
@@ -308,8 +309,8 @@ const AdminPayments = () => {
                       alt="Payment Proof" 
                       className="w-full h-auto max-h-72 object-contain rounded-xl border border-white/10 bg-black/50" 
                     />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-xl transition-opacity">
-                      <span className="text-white text-sm font-medium flex items-center gap-1">
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-xl transition-opacity">
+                      <span className="text-white text-sm font-bold flex items-center gap-1 bg-black/50 px-4 py-2 rounded-full">
                         Open Full Image <ExternalLink size={14} />
                       </span>
                     </div>
@@ -339,8 +340,9 @@ const AdminPayments = () => {
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Approve
               </button>
             </div>
-          </GlassCard>
-        </div>
+          </div>
+        </div>,
+        document.body // THIS IS THE FIX
       )}
 
     </div>
