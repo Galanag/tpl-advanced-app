@@ -42,6 +42,7 @@ const Wallet = () => {
   const [freshProfile, setFreshProfile] = useState(profile);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeReferralsCount, setActiveReferralsCount] = useState(0);
+  const [withdrawalCount, setWithdrawalCount] = useState(0);
 
   // ==========================================
   // 1. Fetch Fresh Profile Data
