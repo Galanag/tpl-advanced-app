@@ -5,10 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
 import SkeletonLoader from '../components/SkeletonLoader';
 import { Smartphone, Copy, CheckCircle2, ArrowLeft, ShieldCheck, Sparkles, MessageCircle } from 'lucide-react';
+import CryptoJS from 'crypto-js'; // ADDED FOR HASHING
 
 const Deposit = () => {
   const { user, profile } = useAuthStore();
   const navigate = useNavigate();
+  
+  // UI State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -19,18 +22,20 @@ const Deposit = () => {
   const [telebirrNumber, setTelebirrNumber] = useState('');
   const [telebirrMissing, setTelebirrMissing] = useState(false);
 
+  // Form State
   const [form, setForm] = useState({
     amount: '',
     transactionId: '',
     targetVip: '',
     paymentReference: '',
     proofImage: null,
+    imageHash: '', // STORES THE MD5 HASH
   });
 
   const isRegistration = profile?.account_status !== 'active';
   const registrationFee = 1000;
 
-  // Determine which VIP levels are available for upgrade (Expanded to VIP10)
+  // Determine which VIP levels are available for upgrade
   const getAvailableVipLevels = () => {
     if (!profile?.vip_level) return [];
     const vipOrder = ['Basic', 'VIP1', 'VIP2', 'VIP3', 'VIP4', 'VIP5', 'VIP6', 'VIP7', 'VIP8', 'VIP9', 'VIP10'];
@@ -48,6 +53,7 @@ const Deposit = () => {
     return Math.max(0, targetPrice - currentPrice);
   };
 
+  // Fetch Global Settings on Mount
   useEffect(() => {
     setError('');
     setSuccess('');
@@ -73,7 +79,7 @@ const Deposit = () => {
     fetchSettings();
   }, []);
 
-  // Reset the amount when the mode or selected target changes
+  // Update Amount when VIP Target Changes
   useEffect(() => {
     if (isRegistration) {
       setForm((prev) => ({ ...prev, amount: String(registrationFee), targetVip: 'Basic' }));
@@ -82,14 +88,25 @@ const Deposit = () => {
     }
   }, [isRegistration, registrationFee, form.targetVip]);
 
+  // Handle File Upload & Hash Generation
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setForm(prev => ({ ...prev, proofImage: file }));
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const binary = event.target.result;
+      const hash = CryptoJS.MD5(binary).toString();
+      setForm(prev => ({ ...prev, imageHash: hash }));
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const handleChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === 'proofImage') {
-      const file = files[0];
-      if (file) setForm((prev) => ({ ...prev, proofImage: file }));
-    } else {
-      setForm((prev) => ({ ...prev, [name]: value }));
-    }
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const copyNumber = async () => {
@@ -103,7 +120,7 @@ const Deposit = () => {
     }
   };
 
-  // Logic to determine if the form can be submitted
+  // Form Validity Checks
   const hasReference = form.paymentReference && form.paymentReference.trim() !== '';
   const hasProof = form.proofImage !== null;
   const canSubmit = !loading && (hasReference || hasProof) && (isRegistration || form.targetVip);
@@ -115,24 +132,34 @@ const Deposit = () => {
 
     if (!user) { setError('User not authenticated'); return; }
     if (!isRegistration && !form.targetVip) { setError('Please select a target VIP level'); return; }
-    
-    if (!hasReference && !hasProof) { 
-      setError("Please provide either a Transaction Reference OR upload a screenshot."); 
-      return; 
-    }
+    if (!hasReference && !hasProof) { setError("Please provide either a Transaction Reference OR upload a screenshot."); return; }
 
     const amount = isRegistration ? registrationFee : getUpgradeCost(form.targetVip);
     if (!amount || amount <= 0) { setError('Unable to determine a valid payment amount'); return; }
 
     setLoading(true);
-    
-    // Force a session refresh to ensure the user is fully authenticated (Fixes mobile upload issues)
     await supabase.auth.refreshSession();
     
     try {
-      let proofImageUrl = null;
+      const reference = form.paymentReference ? form.paymentReference.trim() : '';
+      
+      // --- FRAUD CHECK START ---
+      let isFlagged = false;
+      
+      // 1. Check duplicate reference
+      if (reference) {
+        const { data: refData } = await supabase.from('deposits').select('id').eq('payment_reference', reference).single();
+        if (refData) isFlagged = true;
+      }
+      
+      // 2. Check duplicate image hash
+      if (form.imageHash) {
+        const { data: hashData } = await supabase.from('deposits').select('id').eq('image_hash', form.imageHash).single();
+        if (hashData) isFlagged = true;
+      }
+      // --- FRAUD CHECK END ---
 
-      // Only attempt upload if a file was actually selected
+      let proofImageUrl = null;
       if (form.proofImage) {
         const file = form.proofImage;
         const fileName = `${Date.now()}_${file.name}`;
@@ -148,8 +175,6 @@ const Deposit = () => {
         proofImageUrl = publicUrlData.publicUrl;
       }
 
-      const reference = form.paymentReference ? form.paymentReference.trim() : '';
-
       const { error: depositError } = await supabase
         .from('deposits')
         .insert({
@@ -160,10 +185,10 @@ const Deposit = () => {
           target_vip: isRegistration ? 'Basic' : form.targetVip,
           payment_reference: reference,
           proof_image_url: proofImageUrl,
+          image_hash: form.imageHash, // Save hash
+          is_flagged: isFlagged,      // Save flag
           status: 'pending',
-        })
-        .select()
-        .single();
+        });
 
       if (depositError) throw depositError;
 
@@ -172,7 +197,7 @@ const Deposit = () => {
           ? 'Registration payment submitted. Your account will be activated after admin approval.'
           : 'VIP upgrade request submitted. Awaiting admin approval.'
       );
-      setForm({ amount: '', transactionId: '', targetVip: '', paymentReference: '', proofImage: null });
+      setForm({ amount: '', transactionId: '', targetVip: '', paymentReference: '', proofImage: null, imageHash: '' });
 
       setTimeout(() => navigate('/wallet'), 1600);
     } catch (err) {
@@ -189,6 +214,7 @@ const Deposit = () => {
       <div className="fixed bottom-[-20%] right-[-10%] w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-lg mx-auto fade-in-up relative z-10">
+        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-white/10 text-white/60 transition-colors active:scale-95">
             <ArrowLeft size={18} />
@@ -203,7 +229,7 @@ const Deposit = () => {
           </div>
         </div>
 
-        {/* Telebirr payment info */}
+        {/* Telebirr Payment Info */}
         <GlassCard className="p-5 mb-4 border border-amber-500/25 bg-gradient-to-br from-amber-500/10 to-transparent">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center">
@@ -267,6 +293,7 @@ const Deposit = () => {
           </div>
         )}
 
+        {/* Form Section */}
         <div className="glass-card p-6">
           {settingsLoading ? (
             <div className="space-y-3">
@@ -327,7 +354,7 @@ const Deposit = () => {
               <p className="text-white/50 text-xs mt-2">Please provide at least one proof of payment (Reference or Screenshot).</p>
 
               <div>
-                <label className="text-white/50 text-sm block mb-1.5">Transaction Reference * </label>
+                <label className="text-white/50 text-sm block mb-1.5">Transaction Reference *</label>
                 <input
                   type="text"
                   name="paymentReference"
@@ -336,7 +363,6 @@ const Deposit = () => {
                   className="glass-input"
                   placeholder="e.g. TB1234567890"
                 />
-                <p className="text-white/40 text-xs mt-1">Provide if you have a transaction ID</p>
               </div>
 
               <div>
@@ -344,12 +370,10 @@ const Deposit = () => {
                 <input
                   type="file"
                   name="proofImage"
-                  onChange={handleChange}
+                  onChange={handleFileChange} // USES NEW HANDLER
                   className="glass-input"
                   accept="image/jpeg,image/png,image/webp,image/heic"
-                  // Removed 'required' attribute so reference alone can be submitted
                 />
-                <p className="text-white/40 text-xs mt-1">Provide if you have a screenshot. Either this OR a reference is sufficient.</p>
               </div>
 
               {isRegistration && (
@@ -363,7 +387,7 @@ const Deposit = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setForm({ amount: '', transactionId: '', targetVip: '', paymentReference: '', proofImage: null });
+                    setForm({ amount: '', transactionId: '', targetVip: '', paymentReference: '', proofImage: null, imageHash: '' });
                     setError('');
                     setSuccess('');
                   }}
@@ -373,7 +397,7 @@ const Deposit = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={!canSubmit} // Use the new canSubmit logic
+                  disabled={!canSubmit}
                   className="btn-primary flex-1 flex items-center justify-center gap-2"
                 >
                   {loading ? (

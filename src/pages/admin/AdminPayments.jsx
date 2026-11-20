@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAdminStore } from '../../store/adminStore';
 import { useAuthStore } from '../../store/authStore';
-import { ArrowUpRight, Check, X, Loader2, Banknote, ExternalLink } from 'lucide-react';
+import { ArrowUpRight, Check, X, Loader2, Banknote, ExternalLink, AlertTriangle } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import SkeletonLoader from '../../components/SkeletonLoader';
 
@@ -22,7 +22,6 @@ const AdminPayments = () => {
 
   const fetchPendingDeposits = async () => {
     setLoading(true);
-    // Force a session refresh to prevent schema cache errors
     await supabase.auth.refreshSession();
     try {
       const { data, error: fetchError } = await supabase
@@ -30,12 +29,7 @@ const AdminPayments = () => {
         .select(`
           *,
           profiles!deposits_user_id_fkey (
-            id,
-            full_name,
-            phone,
-            referral_code,
-            referred_by,
-            successful_referrals
+            id, full_name, phone, referral_code, referred_by, successful_referrals
           )
         `)
         .eq('status', 'pending')
@@ -53,7 +47,6 @@ const AdminPayments = () => {
 
   const approveDeposit = async (depositId) => {
     setLoading(true);
-    // Force a session refresh to prevent schema cache errors
     await supabase.auth.refreshSession();
     try {
       // 1. Update deposit status to approved
@@ -70,16 +63,7 @@ const AdminPayments = () => {
         .select(`
           *,
           profiles!deposits_user_id_fkey (
-            id,
-            full_name,
-            phone,
-            referral_code,
-            referred_by,
-            successful_referrals,
-            vip_level,
-            daily_quota_limit,
-            total_deposited,
-            account_status
+            id, full_name, phone, referral_code, referred_by, successful_referrals, vip_level, daily_quota_limit, total_deposited, account_status
           )
         `)
         .eq('id', depositId)
@@ -108,6 +92,13 @@ const AdminPayments = () => {
         if (referrerError) throw referrerError;
       }
 
+      // 5. INSERT NOTIFICATION
+      await supabase.from('notifications').insert({
+        user_id: profile.id,
+        title: 'Deposit Approved',
+        message: `Your deposit of ${parseFloat(deposit.amount).toFixed(2)} ETB has been approved.`
+      });
+
       await fetchPendingDeposits();
       setSuccess('Deposit approved successfully.');
       setTimeout(() => setSuccess(''), 3000);
@@ -118,13 +109,12 @@ const AdminPayments = () => {
       setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
-      setSelectedDeposit(null); // Close modal if open
+      setSelectedDeposit(null);
     }
   };
 
   const handleDecline = async (depositId) => {
     setLoading(true);
-    // Force a session refresh to prevent schema cache errors
     await supabase.auth.refreshSession();
     try {
       const { error: updateError } = await supabase
@@ -134,6 +124,16 @@ const AdminPayments = () => {
         
       if (updateError) throw updateError;
       
+      // INSERT NOTIFICATION
+      const { data: depositData } = await supabase.from('deposits').select('user_id, amount').eq('id', depositId).single();
+      if (depositData) {
+        await supabase.from('notifications').insert({
+          user_id: depositData.user_id,
+          title: 'Deposit Declined',
+          message: `Your deposit of ${parseFloat(depositData.amount).toFixed(2)} ETB was declined.`
+        });
+      }
+
       await fetchPendingDeposits();
       setSuccess('Deposit declined successfully.');
       setTimeout(() => setSuccess(''), 3000);
@@ -144,7 +144,7 @@ const AdminPayments = () => {
       setTimeout(() => setError(''), 3000);
     } finally {
       setLoading(false);
-      setSelectedDeposit(null); // Close modal if open
+      setSelectedDeposit(null);
     }
   };
 
@@ -184,17 +184,27 @@ const AdminPayments = () => {
       ) : (
         <div className="space-y-3">
           {pendingDeposits.map((deposit) => (
-            <GlassCard key={deposit.id} className="border border-white/20 p-4">
+            <GlassCard key={deposit.id} className={`border ${deposit.is_flagged ? 'border-red-500/50 bg-red-500/5' : 'border-white/20'} p-4`}>
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 
                 {/* Deposit Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-white/90 text-sm font-medium">Deposit ID: {deposit.id.split('-')[0]}...</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-white/90 text-sm font-medium">Deposit ID: {deposit.id.split('-')[0]}...</p>
+                    {deposit.is_flagged && (
+                      <span className="bg-red-500/20 text-red-400 text-[10px] px-2 py-0.5 rounded-full border border-red-500/30 flex items-center gap-1">
+                        <AlertTriangle size={10} /> Duplicate Detected
+                      </span>
+                    )}
+                  </div>
                   <p className="text-white/70 text-xs mt-1">
                     User: <span className="text-white font-semibold">{deposit.profiles?.full_name || 'Unknown'}</span> ({deposit.profiles?.phone || 'N/A'})
                   </p>
                   <p className="text-white/70 text-xs mt-1">
                     Amount: <span className="text-amber-400 font-bold">{parseFloat(deposit.amount).toFixed(2)} ETB</span> • Method: {deposit.payment_method}
+                  </p>
+                  <p className="text-white/70 text-xs mt-1">
+                    Reference: {deposit.payment_reference || 'None'}
                   </p>
                   <p className="text-white/70 text-xs mt-1">
                     Submitted: {new Date(deposit.created_at).toLocaleString()}
@@ -244,6 +254,17 @@ const AdminPayments = () => {
             </button>
 
             <h3 className="text-white font-bold text-xl mb-4">Deposit Details</h3>
+
+            {/* FRAUD WARNING IN MODAL */}
+            {selectedDeposit.is_flagged && (
+              <div className="mb-4 bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2">
+                <AlertTriangle size={16} className="text-red-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-red-400 text-sm font-bold">Fraud Warning</p>
+                  <p className="text-red-400/80 text-xs">This payment reference or image hash has been used in a previous deposit. Please verify carefully.</p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-4">
               {/* User Info */}
