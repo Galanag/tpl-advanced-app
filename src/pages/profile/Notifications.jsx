@@ -1,99 +1,81 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Loader2 } from 'lucide-react';
+import GlassCard from '../../components/GlassCard';
+import SkeletonLoader from '../../components/SkeletonLoader';
+import { ArrowLeft, Bell, CheckCircle2 } from 'lucide-react';
 
 const Notifications = () => {
+  const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [smsNotifications, setSmsNotifications] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleSave = async () => {
-    setLoading(true);
-    // In a real app, we would save these preferences to a database or localStorage.
-    // For now, we'll just simulate a save.
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // For demonstration, we'll just show an alert. In production, use a toast.
-      alert('Notification settings saved!');
-    } catch (err) {
-      console.error('Failed to save notification settings:', err);
-    } finally {
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchNotifications = async () => {
+      // 1. Fetch all notifications for this user
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setNotifications(data);
+      }
       setLoading(false);
-    }
-  };
+
+      // 2. Mark all as read when the user opens the page
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
+    };
+
+    fetchNotifications();
+  }, [user?.id]);
 
   return (
-    <div className="fade-in-up space-y-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-white">Notifications</h2>
-        <button
-          onClick={() => navigate('/profile')}
-          className="text-sm text-white/60 hover:text-white"
-        >
-          Back
+    <div className="fade-in-up space-y-6 max-w-2xl mx-auto">
+      <div className="flex items-center gap-3 mb-2">
+        <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-white/10 text-white/60 transition-colors active:scale-95">
+          <ArrowLeft size={18} />
         </button>
-      </div>
-
-      <div className="space-y-6">
-        <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
-          <div className="flex items-center gap-3">
-            <Bell size={20} className="text-amber-400" />
-            <div>
-              <p className="text-white font-semibold">Email Notifications</p>
-              <p className="text-white/50 text-xs">Receive updates about earnings, referrals, and promotions</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="cursor-pointer">
-              <input
-                type="checkbox"
-                checked={emailNotifications}
-                onChange={(e) => setEmailNotifications(e.target.checked)}
-                className="rounded border-white/30 text-amber-600 shadow-sm focus:border-amber-500 focus:ring-amber-500"
-              />
-              <span className="ml-2 text-white/50"></span>
-            </label>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
-          <div className="flex items-center gap-3">
-            <Bell size={20} className="text-white/50" />
-            <div>
-              <p className="text-white font-semibold">SMS Notifications</p>
-              <p className="text-white/50 text-xs">Receive SMS alerts for important updates (may incur charges)</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="cursor-pointer">
-              <input
-                type="checkbox"
-                checked={smsNotifications}
-                onChange={(e) => setSmsNotifications(e.target.checked)}
-                className="rounded border-white/30 text-amber-600 shadow-sm focus:border-amber-500 focus:ring-amber-500"
-              />
-              <span className="ml-2 text-white/50"></span>
-            </label>
-          </div>
+        <div>
+          <h2 className="text-xl font-bold text-white">Notifications</h2>
+          <p className="text-white/50 text-sm mt-0.5">Updates on your deposits and withdrawals</p>
         </div>
       </div>
 
-      <button
-        onClick={handleSave}
-        disabled={loading}
-        className="btn-primary w-full mt-6"
-      >
-        {loading ? (
-          <>
-            <Loader2 size={18} className="animate-spin" />
-            Saving...
-          </>
-        ) : (
-          'Save Settings'
-        )}
-      </button>
+      {loading ? (
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => <SkeletonLoader key={i} className="h-20 w-full rounded-xl" />)}
+        </div>
+      ) : notifications.length === 0 ? (
+        <GlassCard className="text-center py-12">
+          <Bell size={40} className="text-white/20 mx-auto mb-3" />
+          <p className="text-white/40">No notifications yet.</p>
+        </GlassCard>
+      ) : (
+        <div className="space-y-3">
+          {notifications.map((notif) => (
+            <GlassCard key={notif.id} className="p-4 flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                <CheckCircle2 size={20} className="text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white/90 font-semibold text-sm">{notif.title}</p>
+                <p className="text-white/70 text-sm mt-1">{notif.message}</p>
+                <p className="text-white/40 text-xs mt-2">{new Date(notif.created_at).toLocaleString()}</p>
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
