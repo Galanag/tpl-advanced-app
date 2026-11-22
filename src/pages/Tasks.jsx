@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom'; // FIX: Import createPortal for centered modals
 import { useNavigate } from 'react-router-dom';
 import { PlayCircle, Clock, X, Loader2, CheckCircle2, AlertTriangle, Lock, BarChart3, Pause, Play } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -7,22 +8,35 @@ import { claimVideoReward, saveProgress } from '../utils/mlm';
 import GlassCard from '../components/GlassCard';
 import SkeletonLoader from '../components/SkeletonLoader';
 
+// ============================================================
+// HELPER: Extract YouTube ID from a URL
+// ============================================================
 const extractYouTubeId = (url) => {
   if (!url) return null;
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=|youtube\.com\/embed\/)([^&\n?#]+)/);
   return match ? match[1] : null;
 };
 
+// ============================================================
+// MAIN TASKS COMPONENT
+// ============================================================
 const Tasks = () => {
+  // Auth state from Zustand store
   const { user, profile, refreshProfile } = useAuthStore();
   const navigate = useNavigate();
+
+  // ============================================================
+  // STATE: Video list and progress
+  // ============================================================
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [watchedIds, setWatchedIds] = useState(new Set());
   const [progressMap, setProgressMap] = useState({});
 
-  // Fetch VIP level and settings for reward display and quota
-    const [userVipLevel, setUserVipLevel] = useState(profile?.vip_level || 'Basic');
+  // ============================================================
+  // STATE: VIP level and quota
+  // ============================================================
+  const [userVipLevel, setUserVipLevel] = useState(profile?.vip_level || 'Basic');
   const VIP_LEVELS = ['Basic', 'VIP1', 'VIP2', 'VIP3', 'VIP4', 'VIP5'];
   const userVipIndex = VIP_LEVELS.indexOf(profile?.vip_level || 'Basic');
   const [userRewardAmount, setUserRewardAmount] = useState(0);
@@ -31,19 +45,25 @@ const Tasks = () => {
   const quotaReached = watchedToday >= quotaLimit;
   const [accountActive, setAccountActive] = useState(profile?.account_status === 'active');
 
-  // Modals for feedback
+  // ============================================================
+  // STATE: Feedback modals
+  // ============================================================
   const [showPendingModal, setShowPendingModal] = useState(false);
   const [showWatchedModal, setShowWatchedModal] = useState(false);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [lastReward, setLastReward] = useState(0);
 
-  // Pending account info (registration fee + Telebirr payment details)
+  // ============================================================
+  // STATE: Pending account info (registration fee + Telebirr)
+  // ============================================================
   const [registrationFee, setRegistrationFee] = useState(0);
   const [telebirrName, setTelebirrName] = useState('');
   const [telebirrNumber, setTelebirrNumber] = useState('');
 
-  // Video player modal state
+  // ============================================================
+  // STATE: Video player modal
+  // ============================================================
   const [activeVideo, setActiveVideo] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -52,33 +72,44 @@ const Tasks = () => {
   const timerRef = useRef(null);
   const playerRef = useRef(null);
 
+  // ============================================================
+  // EFFECT 1: Fetch user data (VIP level, quota, account status)
+  // ============================================================
   useEffect(() => {
     if (!user) return;
     const fetchUserData = async () => {
       try {
-        const { data: profileData } = await supabase.from('profiles').select('vip_level, daily_quota_limit, daily_videos_watched, account_status').eq('id', user.id).single();
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('vip_level, daily_quota_limit, daily_videos_watched, account_status')
+          .eq('id', user.id)
+          .single();
+
         if (profileData) {
           setUserVipLevel(profileData.vip_level || 'Basic');
           setQuotaLimit(profileData.daily_quota_limit || 10);
 
-  // Fallback: calculate quota based on vip_level if profile data is missing
-  const vipFallbackQuota = {
-    'Basic': 5,
-    'VIP1': 10,
-    'VIP2': 15,
-    'VIP3': 20,
-    'VIP4': 25,
-  }[profileData.vip_level] || 5;
-  if (profileData.daily_quota_limit <= 0) {
-    setQuotaLimit(vipFallbackQuota);
-  }
+          // Fallback: calculate quota based on vip_level if profile data is missing
+          const vipFallbackQuota = {
+            'Basic': 5,
+            'VIP1': 10,
+            'VIP2': 15,
+            'VIP3': 20,
+            'VIP4': 25,
+          }[profileData.vip_level] || 5;
+
+          if (profileData.daily_quota_limit <= 0) {
+            setQuotaLimit(vipFallbackQuota);
+          }
+
           setWatchedToday(profileData.daily_videos_watched || 0);
           setAccountActive(profileData.account_status === 'active');
 
-          // Fetch reward amount based on VIP level
+          // Fetch reward amount based on VIP level from admin settings
           const { data: settings } = await supabase.from('admin_settings').select('*');
           const settingsMap = {};
           (settings || []).forEach((s) => { settingsMap[s.key] = s.value; });
+
           let amount = 0;
           switch (profileData.vip_level) {
             case 'VIP1':
@@ -104,9 +135,14 @@ const Tasks = () => {
     fetchUserData();
   }, [user]);
 
+  // ============================================================
+  // EFFECT 2: Fetch videos
+  // ============================================================
   useEffect(() => { fetchVideos(); }, [user]);
 
-  // Fetch registration fee + Telebirr payment details from admin_settings
+  // ============================================================
+  // EFFECT 3: Fetch admin settings (registration fee + Telebirr)
+  // ============================================================
   useEffect(() => {
     if (!user) return;
     const fetchSettings = async () => {
@@ -126,21 +162,35 @@ const Tasks = () => {
     fetchSettings();
   }, [user]);
 
+  // ============================================================
+  // FUNCTION: Fetch all videos + user progress
+  // ============================================================
   const fetchVideos = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('videos').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('videos')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    // Filter videos based on VIP gating
     const visibleVideos = data?.filter(v => {
       const videoVipIndex = VIP_LEVELS.indexOf(v.min_vip_level || 'Basic');
       return videoVipIndex <= userVipIndex;
     }) || [];
+
     setVideos(visibleVideos);
+
     if (error) {
       console.error('[Tasks] Error fetching videos:', error);
       setVideos([]);
     } else {
       setVideos(data || []);
       if (user?.id && data?.length) {
-        const { data: progressData, error: progressError } = await supabase.from('user_progress').select('video_id, status, watched_seconds').eq('user_id', user.id);
+        const { data: progressData, error: progressError } = await supabase
+          .from('user_progress')
+          .select('video_id, status, watched_seconds')
+          .eq('user_id', user.id);
+
         if (progressError) {
           console.error('[Tasks] Error fetching user progress:', progressError);
         } else {
@@ -158,7 +208,9 @@ const Tasks = () => {
     setLoading(false);
   };
 
-  // Start watching a video - open the modal and mark in_progress
+  // ============================================================
+  // FUNCTION: Start watching a video
+  // ============================================================
   const startWatch = useCallback((video) => {
     setPlayerError('');
     if (!video.youtube_url) {
@@ -167,14 +219,16 @@ const Tasks = () => {
     }
     // Mark progress so the server knows the task was started
     if (user?.id) saveProgress(user.id, video.id, 0);
-    
+
     // Open modal - this will trigger the timer
     setActiveVideo(video);
     setTimeLeft(video.duration_seconds || 30);
     setTimerRunning(true);
   }, [user]);
 
-  // Handle video click with guards
+  // ============================================================
+  // FUNCTION: Handle video click with guards
+  // ============================================================
   const handleVideoClick = (video) => {
     if (!accountActive) {
       setShowPendingModal(true);
@@ -187,7 +241,9 @@ const Tasks = () => {
     }
   };
 
-  // Timer effect
+  // ============================================================
+  // EFFECT: Timer countdown
+  // ============================================================
   useEffect(() => {
     if (!timerRunning || timeLeft <= 0) {
       if (timeLeft <= 0 && timerRunning) {
@@ -210,7 +266,9 @@ const Tasks = () => {
     return () => clearInterval(timerRef.current);
   }, [timerRunning, timeLeft]);
 
-  // Claim reward when timer is done
+  // ============================================================
+  // FUNCTION: Claim reward when timer is done
+  // ============================================================
   const handleClaim = useCallback(async () => {
     if (!activeVideo || claiming || timeLeft > 0) return;
     setClaiming(true);
@@ -220,15 +278,20 @@ const Tasks = () => {
       await refreshProfile();
 
       setWatchedIds((prev) => new Set([...prev, activeVideo.id]));
-      
+
       // Refresh quota / watched counters from the server
-      const { data: fresh } = await supabase.from('profiles').select('daily_videos_watched, daily_quota_limit').eq('id', user.id).single();
+      const { data: fresh } = await supabase
+        .from('profiles')
+        .select('daily_videos_watched, daily_quota_limit')
+        .eq('id', user.id)
+        .single();
+
       if (fresh) {
         setWatchedToday(fresh.daily_videos_watched || 0);
         setQuotaLimit(fresh.daily_quota_limit || 10);
       }
 
-      // Close modal and show completion
+      // Close player and show completion modal
       setActiveVideo(null);
       setTimeLeft(0);
       setTimerRunning(false);
@@ -242,6 +305,9 @@ const Tasks = () => {
     }
   }, [activeVideo, claiming, timeLeft, user, refreshProfile]);
 
+  // ============================================================
+  // FUNCTION: Close player
+  // ============================================================
   const closePlayer = () => {
     clearInterval(timerRef.current);
     setTimerRunning(false);
@@ -250,19 +316,27 @@ const Tasks = () => {
     setPlayerError('');
   };
 
+  // ============================================================
+  // HELPER: Format seconds to M:SS
+  // ============================================================
   const formatTime = (s) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
+  // ============================================================
+  // RENDER
+  // ============================================================
   return (
     <div className="fade-in-up space-y-6">
+      {/* Page header */}
       <div>
         <h2 className="text-xl font-bold text-white">Tasks</h2>
         <p className="text-white/50 text-sm mt-0.5">Watch videos to earn rewards</p>
       </div>
 
+      {/* Pending account banner */}
       {!accountActive && (
         <GlassCard className="border-amber-500/30">
           <div className="flex items-center gap-3">
@@ -275,6 +349,7 @@ const Tasks = () => {
         </GlassCard>
       )}
 
+      {/* Daily quota progress */}
       {accountActive && (
         <GlassCard>
           <div className="flex items-center justify-between mb-2">
@@ -295,12 +370,14 @@ const Tasks = () => {
         </GlassCard>
       )}
 
+      {/* Error banner */}
       {playerError && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
           <p className="text-red-400 text-sm">{playerError}</p>
         </div>
       )}
 
+      {/* Loading or Video Grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => <SkeletonLoader key={i} className="h-56 w-full rounded-2xl" />)}
@@ -356,15 +433,17 @@ const Tasks = () => {
         </div>
       )}
 
-      {/* Video Player Modal */}
-      {activeVideo && (
-        <div className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-sm" onClick={closePlayer}>
+      {/* ============================================ */}
+      {/* PORTAL 1: Video Player Modal (CENTERED FIX) */}
+      {/* ============================================ */}
+      {activeVideo && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm" onClick={closePlayer}>
           <div className="relative h-full flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
-            <GlassCard className="w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden bg-[#0f172a] rounded-2xl border border-white/10 shadow-2xl">
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                 <h3 className="text-white font-semibold text-sm truncate pr-4">{activeVideo.title}</h3>
-                <button 
+                <button
                   onClick={closePlayer}
                   className="p-1.5 rounded-full hover:bg-white/10 text-white/60 transition-colors active:scale-95 shrink-0"
                 >
@@ -449,67 +528,90 @@ const Tasks = () => {
                   </div>
                 )}
               </div>
-            </GlassCard>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Video Completion Modal */}
-      {showCompletionModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <GlassCard className="w-full max-w-sm p-6 fade-in-up">
+      {/* ============================================ */}
+      {/* PORTAL 2: Video Completion Modal (CENTERED) */}
+      {/* ============================================ */}
+      {showCompletionModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm p-6 bg-[#0f172a] rounded-2xl border border-white/10 shadow-2xl relative fade-in-up">
             <button onClick={() => setShowCompletionModal(false)} className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50 transition-colors active:scale-95">
               <X size={18} />
             </button>
             <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CheckCircle2 size={32} className="text-emerald-400" />
+              </div>
               <h3 className="text-white font-bold text-lg mb-2">Reward Awarded!</h3>
               <p className="text-white/50 text-sm mb-3">
-                You have earned {lastReward} ETB for completing the task.
+                You have earned <strong className="text-emerald-400">{lastReward} ETB</strong> for completing the task.
               </p>
               <div className="flex justify-center space-x-4">
                 <button onClick={() => setShowCompletionModal(false)} className="btn-secondary">
                   OK
                 </button>
-                <button onClick={() => setShowCompletionModal(false) && closePlayer()} className="btn-primary">
+                <button onClick={() => { setShowCompletionModal(false); closePlayer(); }} className="btn-primary">
                   Continue
                 </button>
               </div>
             </div>
-          </GlassCard>
-        </div>
+          </div>
+        </div>,
+        document.body
       )}
 
-      {/* Pending Account Modal */}
-      {showPendingModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <GlassCard className="w-full max-w-sm p-6 fade-in-up">
+      {/* ============================================ */}
+      {/* PORTAL 3: Pending Account Modal (CENTERED) */}
+      {/* ============================================ */}
+      {showPendingModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm p-6 bg-[#0f172a] rounded-2xl border border-white/10 shadow-2xl relative fade-in-up">
             <button onClick={() => setShowPendingModal(false)} className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50 transition-colors active:scale-95">
               <X size={18} />
             </button>
             <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <Lock size={32} className="text-amber-400" />
+              </div>
               <h3 className="text-white font-bold text-lg mb-2">Account Not Active</h3>
               <p className="text-white/50 text-sm mb-3">Pay the registration fee and upload the proof to activate your account.</p>
-              <div className="space-y-3 mb-5">
-                <p className="text-white/60 text-sm">Registration Fee: {registrationFee} ETB</p>
-                <p className="text-white/60 text-sm">Send Payment To: {telebirrName} ({telebirrNumber})</p>
+              <div className="space-y-3 mb-5 bg-white/5 p-4 rounded-xl border border-white/10">
+                <p className="text-white/60 text-sm">Registration Fee: <strong className="text-amber-400">{registrationFee} ETB</strong></p>
+                {telebirrName && (
+                  <p className="text-white/60 text-sm">Send Payment To: <strong className="text-white">{telebirrName}</strong></p>
+                )}
+                {telebirrNumber && (
+                  <p className="text-white/60 text-sm">Phone: <strong className="text-white">{telebirrNumber}</strong></p>
+                )}
               </div>
               <div className="flex justify-center space-x-4">
                 <button onClick={() => setShowPendingModal(false)} className="btn-secondary">OK</button>
-                <button onClick={() => { setShowPendingModal(false); navigate('/deposit'); }} className="btn-primary">Go to Deposit Page to Upload Proof</button>
+                <button onClick={() => { setShowPendingModal(false); navigate('/deposit'); }} className="btn-primary">Go to Deposit Page</button>
               </div>
             </div>
-          </GlassCard>
-        </div>
+          </div>
+        </div>,
+        document.body
       )}
 
-      {/* Already Watched Modal */}
-      {showWatchedModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <GlassCard className="w-full max-w-sm p-6 fade-in-up">
+      {/* ============================================ */}
+      {/* PORTAL 4: Already Watched Modal (CENTERED) */}
+      {/* ============================================ */}
+      {showWatchedModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm p-6 bg-[#0f172a] rounded-2xl border border-white/10 shadow-2xl relative fade-in-up">
             <button onClick={() => setShowWatchedModal(false)} className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50 transition-colors active:scale-95">
               <X size={18} />
             </button>
             <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CheckCircle2 size={32} className="text-emerald-400" />
+              </div>
               <h3 className="text-white font-bold text-lg mb-2">Task Already Completed</h3>
               <p className="text-white/50 text-sm mb-5">
                 You have already claimed the reward for this task.
@@ -520,18 +622,24 @@ const Tasks = () => {
                 </button>
               </div>
             </div>
-          </GlassCard>
-        </div>
+          </div>
+        </div>,
+        document.body
       )}
 
-      {/* Quota Reached Modal */}
-      {showQuotaModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <GlassCard className="w-full max-w-sm p-6 fade-in-up">
+      {/* ============================================ */}
+      {/* PORTAL 5: Quota Reached Modal (CENTERED) */}
+      {/* ============================================ */}
+      {showQuotaModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm p-6 bg-[#0f172a] rounded-2xl border border-white/10 shadow-2xl relative fade-in-up">
             <button onClick={() => setShowQuotaModal(false)} className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-white/10 text-white/50 transition-colors active:scale-95">
               <X size={18} />
             </button>
             <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+                <AlertTriangle size={32} className="text-red-400" />
+              </div>
               <h3 className="text-white font-bold text-lg mb-2">Daily Quota Reached</h3>
               <p className="text-white/50 text-sm mb-5">
                 You have reached your daily quota. Please come back tomorrow to earn more.
@@ -542,8 +650,9 @@ const Tasks = () => {
                 </button>
               </div>
             </div>
-          </GlassCard>
-        </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
