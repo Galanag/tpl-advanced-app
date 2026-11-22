@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom'; // FIX: Import createPortal for centered modals
+import { createPortal } from 'react-dom'; // Import createPortal for centered modals
 import { useNavigate } from 'react-router-dom';
 import { PlayCircle, Clock, X, Loader2, CheckCircle2, AlertTriangle, Lock, BarChart3, Pause, Play } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -17,14 +17,10 @@ const extractYouTubeId = (url) => {
   return match ? match[1] : null;
 };
 
-// ============================================================
-// MAIN TASKS COMPONENT
-// ============================================================
 const Tasks = () => {
-  // Auth state from Zustand store
   const { user, profile, refreshProfile } = useAuthStore();
   const navigate = useNavigate();
-
+  
   // ============================================================
   // STATE: Video list and progress
   // ============================================================
@@ -34,13 +30,14 @@ const Tasks = () => {
   const [progressMap, setProgressMap] = useState({});
 
   // ============================================================
-  // STATE: VIP level and quota
+  // STATE: VIP level and quota (EXPANDED TO VIP 7)
   // ============================================================
   const [userVipLevel, setUserVipLevel] = useState(profile?.vip_level || 'Basic');
-  const VIP_LEVELS = ['Basic', 'VIP1', 'VIP2', 'VIP3', 'VIP4', 'VIP5'];
+  const VIP_LEVELS = ['Basic', 'VIP1', 'VIP2', 'VIP3', 'VIP4', 'VIP5', 'VIP6', 'VIP7']; // Added VIP4-7
   const userVipIndex = VIP_LEVELS.indexOf(profile?.vip_level || 'Basic');
+  
   const [userRewardAmount, setUserRewardAmount] = useState(0);
-  const [quotaLimit, setQuotaLimit] = useState(profile?.daily_quota_limit || 10);
+  const [quotaLimit, setQuotaLimit] = useState(profile?.daily_quota_limit || 5);
   const [watchedToday, setWatchedToday] = useState(profile?.daily_videos_watched || 0);
   const quotaReached = watchedToday >= quotaLimit;
   const [accountActive, setAccountActive] = useState(profile?.account_status === 'active');
@@ -57,7 +54,7 @@ const Tasks = () => {
   // ============================================================
   // STATE: Pending account info (registration fee + Telebirr)
   // ============================================================
-  const [registrationFee, setRegistrationFee] = useState(0);
+  const [registrationFee, setRegistrationFee] = useState(1000);
   const [telebirrName, setTelebirrName] = useState('');
   const [telebirrNumber, setTelebirrNumber] = useState('');
 
@@ -87,15 +84,18 @@ const Tasks = () => {
 
         if (profileData) {
           setUserVipLevel(profileData.vip_level || 'Basic');
-          setQuotaLimit(profileData.daily_quota_limit || 10);
+          setQuotaLimit(profileData.daily_quota_limit || 5);
 
-          // Fallback: calculate quota based on vip_level if profile data is missing
+          // EXPANDED FALLBACK QUOTA
           const vipFallbackQuota = {
             'Basic': 5,
             'VIP1': 10,
             'VIP2': 15,
             'VIP3': 20,
             'VIP4': 25,
+            'VIP5': 30,
+            'VIP6': 35,
+            'VIP7': 40,
           }[profileData.vip_level] || 5;
 
           if (profileData.daily_quota_limit <= 0) {
@@ -105,26 +105,21 @@ const Tasks = () => {
           setWatchedToday(profileData.daily_videos_watched || 0);
           setAccountActive(profileData.account_status === 'active');
 
-          // Fetch reward amount based on VIP level from admin settings
+          // EXPANDED REWARD AMOUNT SWITCH
           const { data: settings } = await supabase.from('admin_settings').select('*');
           const settingsMap = {};
           (settings || []).forEach((s) => { settingsMap[s.key] = s.value; });
 
           let amount = 0;
           switch (profileData.vip_level) {
-            case 'VIP1':
-              amount = parseFloat(settingsMap.vip1_reward_amount) || 15;
-              break;
-            case 'VIP2':
-              amount = parseFloat(settingsMap.vip2_reward_amount) || 20;
-              break;
-            case 'VIP3':
-              amount = parseFloat(settingsMap.vip3_reward_amount) || 25;
-              break;
-            case 'Basic':
-            default:
-              amount = parseFloat(settingsMap.basic_reward_amount) || 600;
-              break;
+            case 'VIP1': amount = parseFloat(settingsMap.vip1_reward_amount) || 600; break;
+            case 'VIP2': amount = parseFloat(settingsMap.vip2_reward_amount) || 600; break;
+            case 'VIP3': amount = parseFloat(settingsMap.vip3_reward_amount) || 600; break;
+            case 'VIP4': amount = parseFloat(settingsMap.vip4_reward_amount) || 600; break;
+            case 'VIP5': amount = parseFloat(settingsMap.vip5_reward_amount) || 600; break;
+            case 'VIP6': amount = parseFloat(settingsMap.vip6_reward_amount) || 600; break;
+            case 'VIP7': amount = parseFloat(settingsMap.vip7_reward_amount) || 600; break;
+            default: amount = parseFloat(settingsMap.basic_reward_amount) || 600; break;
           }
           setUserRewardAmount(amount);
         }
@@ -151,7 +146,7 @@ const Tasks = () => {
         if (data) {
           const map = {};
           data.forEach((s) => { map[s.key] = s.value; });
-          setRegistrationFee(parseFloat(map.registration_fee) || 500);
+          setRegistrationFee(parseFloat(map.registration_fee) || 1000);
           setTelebirrName(map.telebirr_name || '');
           setTelebirrNumber(map.telebirr_number || '');
         }
@@ -288,7 +283,7 @@ const Tasks = () => {
 
       if (fresh) {
         setWatchedToday(fresh.daily_videos_watched || 0);
-        setQuotaLimit(fresh.daily_quota_limit || 10);
+        setQuotaLimit(fresh.daily_quota_limit || 5);
       }
 
       // Close player and show completion modal

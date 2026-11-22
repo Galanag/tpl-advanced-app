@@ -16,3 +16,8 @@ Admin Panel: Accessible at /admin (requires is_admin = true in profiles table).
 git add .
 git commit -m "Fix JSX placement for Edit User modal"
 git push origin main
+
+
+git add .
+git commit -m "Add advanced admin filters, bulk actions, and archive system"
+git push origin main

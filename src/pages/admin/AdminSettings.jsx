@@ -13,20 +13,31 @@ const AdminSettings = () => {
   const [success, setSuccess] = useState('');
   const [form, setForm] = useState({});
 
-  // Define the settings we want to manage in the UI
+  // Define the settings we want to manage in the UI (Expanded to VIP 7)
   const settingsFields = [
+    // --- Core Settings ---
     { key: 'registration_fee', label: 'Registration Fee (ETB)', type: 'number', min: 0, step: 1 },
+    { key: 'withdrawal_minimum', label: 'Minimum Withdrawal Amount (ETB)', type: 'number', min: 0, step: 0.01 },
+    { key: 'referrals_required_to_withdraw', label: 'Base Referrals Required to Withdraw', type: 'number', min: 0, step: 1 },
+    
+    // --- Legacy Settings (Kept for backward compatibility) ---
     { key: 'daily_video_limit', label: 'Daily Video Limit (for legacy)', type: 'number', min: 0, step: 1 },
     { key: 'video_reward_amount', label: 'Video Reward Amount (ETB) (for legacy)', type: 'number', min: 0, step: 0.01 },
     { key: 'referral_bonus_percentage', label: 'Referral Bonus Percentage (%)', type: 'number', min: 0, max: 100, step: 0.1 },
+    
+    // --- VIP Reward Settings ---
     { key: 'basic_daily_limit', label: 'Basic VIP Daily Limit (videos)', type: 'number', min: 0, step: 1 },
     { key: 'basic_reward_amount', label: 'Basic VIP Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
+    
     { key: 'vip1_reward_amount', label: 'VIP1 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
     { key: 'vip2_reward_amount', label: 'VIP2 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
     { key: 'vip3_reward_amount', label: 'VIP3 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
-    { key: 'withdrawal_minimum', label: 'Minimum Withdrawal Amount (ETB)', type: 'number', min: 0, step: 0.01 },
-    { key: 'referrals_required_to_withdraw', label: 'Referrals Required to Withdraw', type: 'number', min: 0, step: 1 },
-    // Telebirr (new payment method for registration)
+    { key: 'vip4_reward_amount', label: 'VIP4 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
+    { key: 'vip5_reward_amount', label: 'VIP5 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
+    { key: 'vip6_reward_amount', label: 'VIP6 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
+    { key: 'vip7_reward_amount', label: 'VIP7 Reward Amount (ETB)', type: 'number', min: 0, step: 0.01 },
+
+    // --- Payment Details ---
     { key: 'telebirr_name', label: 'Telebirr Account Name', type: 'text', min: 0, step: 1 },
     { key: 'telebirr_number', label: 'Telebirr Phone Number', type: 'tel', min: 0, step: 1 },
   ];
@@ -127,23 +138,26 @@ const AdminSettings = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {settingsFields.map((field) => (
-              <div key={field.key}>
-                <label className="text-white/50 text-sm block mb-1.5">{field.label}</label>
-                <input
-                  type={field.type}
-                  min={field.min}
-                  max={field.max}
-                  step={field.step}
-                  name={field.key}
-                  value={form[field.key] || ''}
-                  onChange={handleChange}
-                  className="glass-input"
-                  placeholder={field.placeholder}
-                />
-              </div>
-            ))}
-            <div className="flex gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {settingsFields.map((field) => (
+                <div key={field.key}>
+                  <label className="text-white/50 text-sm block mb-1.5">{field.label}</label>
+                  <input
+                    type={field.type}
+                    min={field.min}
+                    max={field.max}
+                    step={field.step}
+                    name={field.key}
+                    value={form[field.key] || ''}
+                    onChange={handleChange}
+                    className="glass-input"
+                    placeholder={field.placeholder}
+                  />
+                </div>
+              ))}
+            </div>
+            
+            <div className="flex gap-3 mt-6">
               <button
                 type="button"
                 onClick={(e) => {
@@ -177,49 +191,119 @@ const AdminSettings = () => {
             </div>
           </form>
         </div>
-        <div className="space-y-4">
-          <h3 className="text-white/50 text-sm font-semibold">New VIP Rules (DB-driven)</h3>
-          <div className="grid grid-cols-2 gap-4">
+
+        {/* --- VIP RULES DISPLAY (UPDATED TO VIP 7) --- */}
+        <div className="space-y-4 mt-8 pt-6 border-t border-white/10">
+          <h3 className="text-white/50 text-sm font-semibold mb-4">Current VIP Rules (DB-driven)</h3>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Basic */}
             <GlassCard className="p-4 text-sm">
               <div className="flex items-start gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500/30 flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full bg-green-500/30 flex items-center justify-center mt-1">
                   <svg className="text-green-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
                 </div>
                 <div>
-                  <p className="font-medium">Basic: 0-4 Referrals (5 videos/day)</p>
+                  <p className="font-medium">Basic: 0-4 Referrals</p>
+                  <p className="text-amber-400 font-bold">5 videos/day</p>
                   <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
                 </div>
               </div>
             </GlassCard>
+
+            {/* VIP 1 */}
             <GlassCard className="p-4 text-sm">
               <div className="flex items-start gap-2">
-                <div className="w-3 h-3 rounded-full bg-amber-500/30 flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full bg-amber-500/30 flex items-center justify-center mt-1">
                   <svg className="text-amber-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
                 </div>
                 <div>
-                  <p className="font-medium">VIP 1: 5-9 Referrals (15 videos/day)</p>
+                  <p className="font-medium">VIP 1: 5-9 Referrals</p>
+                  <p className="text-amber-400 font-bold">10 videos/day</p>
                   <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
                 </div>
               </div>
             </GlassCard>
+
+            {/* VIP 2 */}
             <GlassCard className="p-4 text-sm">
               <div className="flex items-start gap-2">
-                <div className="w-3 h-3 rounded-full bg-emerald-500/30 flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full bg-emerald-500/30 flex items-center justify-center mt-1">
                   <svg className="text-emerald-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
                 </div>
                 <div>
-                  <p className="font-medium">VIP 2: 10-14 Referrals (30 videos/day)</p>
+                  <p className="font-medium">VIP 2: 10-14 Referrals</p>
+                  <p className="text-amber-400 font-bold">15 videos/day</p>
                   <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
                 </div>
               </div>
             </GlassCard>
+
+            {/* VIP 3 */}
             <GlassCard className="p-4 text-sm">
               <div className="flex items-start gap-2">
-                <div className="w-3 h-3 rounded-full bg-blue-500/30 flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full bg-blue-500/30 flex items-center justify-center mt-1">
                   <svg className="text-blue-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
                 </div>
                 <div>
-                  <p className="font-medium">VIP 3: 15+ Referrals (50 videos/day)</p>
+                  <p className="font-medium">VIP 3: 15-19 Referrals</p>
+                  <p className="text-amber-400 font-bold">20 videos/day</p>
+                  <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* VIP 4 */}
+            <GlassCard className="p-4 text-sm">
+              <div className="flex items-start gap-2">
+                <div className="w-3 h-3 rounded-full bg-purple-500/30 flex items-center justify-center mt-1">
+                  <svg className="text-purple-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
+                </div>
+                <div>
+                  <p className="font-medium">VIP 4: 20-24 Referrals</p>
+                  <p className="text-amber-400 font-bold">25 videos/day</p>
+                  <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* VIP 5 */}
+            <GlassCard className="p-4 text-sm">
+              <div className="flex items-start gap-2">
+                <div className="w-3 h-3 rounded-full bg-pink-500/30 flex items-center justify-center mt-1">
+                  <svg className="text-pink-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
+                </div>
+                <div>
+                  <p className="font-medium">VIP 5: 25-29 Referrals</p>
+                  <p className="text-amber-400 font-bold">30 videos/day</p>
+                  <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* VIP 6 */}
+            <GlassCard className="p-4 text-sm">
+              <div className="flex items-start gap-2">
+                <div className="w-3 h-3 rounded-full bg-indigo-500/30 flex items-center justify-center mt-1">
+                  <svg className="text-indigo-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
+                </div>
+                <div>
+                  <p className="font-medium">VIP 6: 30-34 Referrals</p>
+                  <p className="text-amber-400 font-bold">35 videos/day</p>
+                  <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* VIP 7 */}
+            <GlassCard className="p-4 text-sm">
+              <div className="flex items-start gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500/30 flex items-center justify-center mt-1">
+                  <svg className="text-red-400 size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l5 9-5 9-5-9 5-9z"/></svg>
+                </div>
+                <div>
+                  <p className="font-medium">VIP 7: 35+ Referrals</p>
+                  <p className="text-amber-400 font-bold">40 videos/day</p>
                   <p className="text-white/60 text-xs">VIP level determined by active referral count</p>
                 </div>
               </div>
